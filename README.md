@@ -1,4 +1,4 @@
-# Periodic Table Practice v20
+# Periodic Table Practice v20 Hosted 
 
 Interactive periodic-table learning game.
 
