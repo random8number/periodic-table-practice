@@ -10,7 +10,7 @@
     "tableColours": true,
     "elementColours": false,
     "atomicNumbers": true,
-    "tooltips": true,
+    "tooltips": false,
     "lockControls": true
   },
   "advanced": {
