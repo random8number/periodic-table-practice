@@ -1,0 +1,30 @@
+{
+  "beginner": {
+    "tableColours": true,
+    "elementColours": true,
+    "atomicNumbers": true,
+    "tooltips": true,
+    "lockControls": true
+  },
+  "intermediate": {
+    "tableColours": true,
+    "elementColours": false,
+    "atomicNumbers": true,
+    "tooltips": true,
+    "lockControls": true
+  },
+  "advanced": {
+    "tableColours": false,
+    "elementColours": false,
+    "atomicNumbers": false,
+    "tooltips": false,
+    "lockControls": true
+  },
+  "customDefaults": {
+    "tableColours": true,
+    "elementColours": true,
+    "atomicNumbers": false,
+    "tooltips": true,
+    "lockControls": false
+  }
+}

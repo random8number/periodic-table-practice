@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Periodic Table Practice v20</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <div class="top-panel">
+    <h1>Periodic Table Practice</h1>
+
+    <div class="toolbar">
+      <div class="top-actions">
+        <button onclick="checkAnswers()">✓ Check answers</button>
+        <button onclick="hint()">💡 Hint</button>
+        <button onclick="showAnswers()">👁 Show answers</button>
+        <button onclick="resetTable()">↻ Reset</button>
+        <button onclick="window.print()">Print</button>
+      </div>
+
+      <details class="burger-menu" id="burgerMenu">
+        <summary title="Options">☰</summary>
+        <div class="burger-popover">
+
+          <div class="menu-section">
+            <span class="tool-label">Sort elements</span>
+            <div class="button-row">
+              <button class="sort-button" data-sort="atomic" onclick="sortElements('atomic')">Atomic number</button>
+              <button class="sort-button" data-sort="alpha" onclick="sortElements('alpha')">Alphabetical (A–Z)</button>
+              <button class="sort-button" data-sort="category" onclick="sortElements('category')">By category</button>
+              <button class="sort-button" data-sort="random" onclick="sortElements('random')">Shuffle</button>
+            </div>
+          </div>
+
+          <div class="menu-section">
+            <span class="tool-label">Mode</span>
+            <select id="modeSelect" onchange="setMode(this.value)">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+
+          <div class="menu-section" id="tableColourGroup">
+            <span class="tool-label">Table colours</span>
+            <div class="toggle">
+              <button id="tableOn" onclick="setTableColours(true)">On</button>
+              <button id="tableOff" onclick="setTableColours(false)">Off</button>
+            </div>
+          </div>
+
+          <div class="menu-section" id="elementColourGroup">
+            <span class="tool-label">Element colours</span>
+            <div class="toggle">
+              <button id="elementsOn" onclick="setElementColours(true)">On</button>
+              <button id="elementsOff" onclick="setElementColours(false)">Off</button>
+            </div>
+          </div>
+
+          <div class="menu-section" id="atomicNumberGroup">
+            <span class="tool-label">Atomic numbers</span>
+            <div class="toggle">
+              <button id="atomicOn" onclick="setAtomicNumbers(true)">On</button>
+              <button id="atomicOff" onclick="setAtomicNumbers(false)">Off</button>
+            </div>
+          </div>
+
+          <div class="menu-section" id="tooltipControlGroup">
+            <span class="tool-label">Help</span>
+            <label class="check-option" title="Show element information when the mouse is held over a table position or element tile.">
+              <input id="tooltipsEnabled" type="checkbox" checked>
+              Enable tooltips
+            </label>
+          </div>
+
+          <div class="menu-section">
+            <span class="tool-label">Category legend</span>
+            <div class="action-display-row">
+              <button id="legendNormal" type="button">Normal</button>
+              <button id="legendCompact" type="button">Compact</button>
+              <button id="legendHidden" type="button">Hidden</button>
+            </div>
+          </div>
+
+          <div class="menu-section">
+            <span class="tool-label">Bottom help bar</span>
+            <div class="action-display-row">
+              <button id="infoBarShow" type="button">Show</button>
+              <button id="infoBarHide" type="button">Hide</button>
+            </div>
+          </div>
+
+          <div class="menu-section">
+            <span class="tool-label">Action buttons</span>
+            <div class="action-display-row">
+              <button id="actionsNormal" type="button">Normal</button>
+              <button id="actionsCompact" type="button">Small</button>
+              <button id="actionsHidden" type="button">Hidden</button>
+            </div>
+          </div>
+
+          <div class="menu-section">
+            <span class="tool-label">Settings</span>
+            <div class="button-row">
+              <button id="loadSettingsButton" type="button">Load settings JSON</button>
+              <button id="clearSettingsButton" type="button">Use built-in settings</button>
+              <input id="settingsFileInput" type="file" accept=".json,application/json" hidden>
+            </div>
+            <div id="settingsStatus" class="menu-setting-status">Built-in settings</div>
+          </div>
+
+        </div>
+      </details>
+    </div>    </div>
+  </div>
+
+  <div class="main" id="mainLayout">
+    <section class="table-panel" id="tablePanel">
+      <div class="legend" id="legend"></div>
+      <div class="periodic-wrapper">
+        <div id="periodic-table" class="table-grid"></div>
+        <div id="lower-table" class="table-grid lower"></div>
+      </div>
+
+      <div class="info-panel">
+        <div class="info-item">Drag elements from the list into the correct position.</div>
+        <div class="info-item">Use Check answers to highlight mistakes.</div>
+        <div class="info-item">Hint reveals one correct element.</div>
+        <div class="info-item">Try Advanced mode when ready.</div>
+      </div>
+    </section>
+
+    <div class="splitter" id="panelSplitter" title="Drag to resize the table and element list"></div>
+
+    <aside class="elements-panel" id="element-panel">
+      <h2 id="elementsTitle">Elements</h2>
+      <div id="element-list" class="element-list"></div>
+      <div class="score" id="score"></div>
+    </aside>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
