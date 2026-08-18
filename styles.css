@@ -1148,3 +1148,24 @@ body.online-room-mode .slot {
     display: none;
   }
 }
+
+
+/* v21.2 Stage 1.2 visible build marker */
+.title-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.title-line h1 {
+  margin-bottom: 0;
+}
+.dev-version {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #f8fafc;
+}

@@ -1,8 +1,13 @@
 @echo off
 cd /d "%~dp0"
-echo Starting Periodic Table Practice v21.2 test server...
+title Periodic Table Practice v21.2 Stage 1.2
+echo Starting Periodic Table Practice v21.2 Stage 1.2
 echo.
-echo Open http://localhost:8000 in Chrome if it does not open automatically.
-start "" http://localhost:8000
-py -m http.server 8000
+echo IMPORTANT: this build uses port 8122 so it cannot accidentally
+echo connect to an older test server on port 8000.
+echo.
+echo Opening http://localhost:8122
+echo.
+start "" "http://localhost:8122/?build=21.2-stage1.2"
+py -m http.server 8122
 pause

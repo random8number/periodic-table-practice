@@ -382,41 +382,74 @@ async function joinOnlineRoom() {
   try {
     const api = firebaseOnline.api;
     const roomRef = api.ref(api.database, `rooms/${code}`);
-    const clientId = makeClientId();
-
-    const result = await api.runTransaction(roomRef, current => {
-      if (current === null) return;
-      if (current.guest && current.guest.id !== clientId) return;
-
-      current.guest = {
-        id: clientId,
-        name: guestName
-      };
-      current.status = "connected";
-      return current;
-    });
-
-    if (!result.committed) {
-      const existing = await api.get(roomRef);
-      if (!existing.exists()) {
-        throw new Error("Room not found. Check the code and try again.");
-      }
-      throw new Error("That room already has two players.");
-    }
-
     const guestRef = api.ref(api.database, `rooms/${code}/guest`);
     const statusRef = api.ref(api.database, `rooms/${code}/status`);
+    const clientId = makeClientId();
+
+    // Confirm the room exists before attempting to claim Player 2.
+    const roomSnapshot = await api.get(roomRef);
+
+    if (!roomSnapshot.exists()) {
+      throw new Error("Room not found. Check the code and try again.");
+    }
+
+    const existingRoom = roomSnapshot.val();
+
+    if (!existingRoom.host) {
+      throw new Error("This room is invalid because it has no host.");
+    }
+
+    // Atomically claim only the guest slot.
+    //
+    // Firebase transactions can initially call the update function with
+    // null before the server value is known. At this child path null means
+    // "Player 2 is currently empty", so proposing the guest here is correct.
+    // If another browser already claimed Player 2, Firebase retries with the
+    // real guest value and the transaction is aborted.
+    const guestResult = await api.runTransaction(guestRef, currentGuest => {
+      if (currentGuest === null) {
+        return {
+          id: clientId,
+          name: guestName
+        };
+      }
+
+      return; // Abort: Player 2 is already occupied.
+    });
+
+    if (!guestResult.committed) {
+      const latestRoom = await api.get(roomRef);
+
+      if (!latestRoom.exists()) {
+        throw new Error("The room was closed before you could join.");
+      }
+
+      const latestData = latestRoom.val();
+      const existingGuestName =
+        latestData && latestData.guest && latestData.guest.name
+          ? latestData.guest.name
+          : "";
+
+      throw new Error(
+        existingGuestName
+          ? `That room already has Player 2 (${existingGuestName}).`
+          : "That room already has two players."
+      );
+    }
+
+    await api.update(roomRef, {
+      status: "connected"
+    });
 
     try {
-      const disconnectGuest = api.onDisconnect(guestRef);
-      await disconnectGuest.remove();
-      const disconnectStatus = api.onDisconnect(statusRef);
-      await disconnectStatus.set("waiting");
+      await api.onDisconnect(guestRef).remove();
+      await api.onDisconnect(statusRef).set("waiting");
     } catch (disconnectError) {
       console.warn("Could not register guest onDisconnect cleanup:", disconnectError);
     }
 
-    const roomData = result.snapshot.val();
+    const updatedRoomSnapshot = await api.get(roomRef);
+    const roomData = updatedRoomSnapshot.val();
 
     onlineRoom = {
       code,
@@ -433,7 +466,7 @@ async function joinOnlineRoom() {
     renderOnlineRoomStatus(roomData);
     listenToOnlineRoom();
   } catch (error) {
-    console.error(error);
+    console.error("Join room failed:", error);
     setOnlineSetupMessage(error.message || String(error), true);
   }
 }

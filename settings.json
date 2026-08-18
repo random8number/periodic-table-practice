@@ -27,7 +27,7 @@
     "tooltips": true,
     "lockControls": false
   },
-  "version": "21.2-stage1.1",
+  "version": "21.2-stage1.2",
   "multiplayer": {
     "defaultElementSet": 20,
     "streakPoints": [
