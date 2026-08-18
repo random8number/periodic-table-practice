@@ -10,7 +10,7 @@
     "tableColours": true,
     "elementColours": false,
     "atomicNumbers": true,
-    "tooltips": false,
+    "tooltips": true,
     "lockControls": true
   },
   "advanced": {
@@ -26,5 +26,16 @@
     "atomicNumbers": false,
     "tooltips": true,
     "lockControls": false
+  },
+  "version": "21.1-dev",
+  "multiplayer": {
+    "defaultElementSet": 20,
+    "streakPoints": [
+      10,
+      12,
+      14,
+      16,
+      18
+    ]
   }
 }

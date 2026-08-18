@@ -1,51 +1,36 @@
-# Periodic Table Practice v20 Hosted 
+# Periodic Table Practice v21.1-dev
 
-Interactive periodic-table learning game.
+This is the first development version of the multiplayer game engine.
 
-## GitHub Pages setup
+## Important
 
-Upload these files to the root of the repository:
+Upload these files to the **`v21-development` branch only**.  
+Do not replace the files on `main` while v21 is being tested.
+
+## v21.1 changes
+
+- Existing single-player mode retained.
+- Added **Local 2 Player** test mode.
+- Player names entered before starting.
+- Quick **First 20** game and full **All 118** game.
+- Correct answer keeps the player's turn.
+- Wrong answer resets the streak and changes player.
+- Streak scoring: 10 / 12 / 14 / 16 / 18 points.
+- Correctly placed elements are locked.
+- Hint and Show Answers are disabled during multiplayer.
+- Live scores, streaks and current-turn display.
+- Results show score, correct placements, accuracy and best streak.
+- Multiplayer scoring defaults are stored in `settings.json`.
+
+## Files
 
 - `index.html`
 - `styles.css`
 - `app.js`
 - `settings.json`
+- `MULTIPLAYER_RULES.md`
+- `README.md`
 
-Then in GitHub:
+## Testing
 
-1. Open **Settings**
-2. Select **Pages**
-3. Under **Build and deployment**, choose **Deploy from a branch**
-4. Select branch **main**
-5. Select folder **/(root)**
-6. Save
-
-GitHub Pages will publish the site from the repository.
-
-## Mode settings
-
-The preset learning modes are controlled in `settings.json`.
-
-Example:
-
-```json
-"beginner": {
-  "tableColours": true,
-  "elementColours": true,
-  "atomicNumbers": true,
-  "tooltips": true,
-  "lockControls": true
-}
-```
-
-- `tableColours`: colour the blank periodic table by category
-- `elementColours`: colour element tiles by category
-- `atomicNumbers`: show atomic numbers
-- `tooltips`: enable element hover information
-- `lockControls`: prevent the preset options being changed
-
-`customDefaults` controls the starting values for Custom mode.
-
-## Version
-
-v20 is the first hosted/GitHub Pages version.
+Start with **Local 2 Player → First 20**. This is intended to let us test a complete game quickly before adding online rooms/Firebase in v21.2.
