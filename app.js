@@ -50,16 +50,847 @@ const DEFAULT_MODE_CONFIG = {
     atomicNumbers: false,
     tooltips: true,
     lockControls: false
+  },
+  multiplayer: {
+    defaultElementSet: 20,
+    streakPoints: [10, 12, 14, 16, 18]
   }
 };
 
 let modeConfig = DEFAULT_MODE_CONFIG;
+
+let playMode = "single";
+let localGame = null;
+
+let firebaseOnline = {
+  ready: false,
+  error: null,
+  api: null
+};
+
+let onlineRoom = null;
+let onlineRoomUnsubscribe = null;
 
 const main = document.getElementById("periodic-table");
 const lower = document.getElementById("lower-table");
 const elementPanel = document.getElementById("element-panel");
 const list = document.getElementById("element-list");
 const score = document.getElementById("score");
+
+
+
+function isOnlineRoomActive() {
+  return playMode === "online" && onlineRoom && Boolean(onlineRoom.code);
+}
+
+function randomRoomCode(length = 6) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < length; i += 1) {
+    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return code;
+}
+
+function makeClientId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function cleanPlayerName(value, fallback) {
+  const cleaned = String(value || "").trim().replace(/\s+/g, " ").slice(0, 24);
+  return cleaned || fallback;
+}
+
+function normaliseRoomCode(value) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 6);
+}
+
+function setOnlineSetupMessage(message, isError = false) {
+  const el = document.getElementById("onlineSetupMessage");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.toggle("error", isError);
+}
+
+function updateFirebaseLoadStatus() {
+  const el = document.getElementById("firebaseLoadStatus");
+  if (!el) return;
+
+  el.classList.remove("ready", "error");
+
+  if (firebaseOnline.ready) {
+    el.textContent = "Firebase connected. Ready to create or join a room.";
+    el.classList.add("ready");
+  } else if (firebaseOnline.error) {
+    el.textContent = `Firebase could not load: ${firebaseOnline.error}`;
+    el.classList.add("error");
+  } else {
+    el.textContent = "Connecting to Firebase…";
+  }
+
+  const disabled = !firebaseOnline.ready;
+  document.getElementById("createOnlineRoomButton").disabled = disabled;
+  document.getElementById("joinOnlineRoomButton").disabled = disabled;
+}
+
+function setOnlineRoomControls(active) {
+  const ids = ["checkAnswersButton", "hintButton", "showAnswersButton", "resetButton"];
+  ids.forEach(id => {
+    const button = document.getElementById(id);
+    if (button) button.disabled = active;
+  });
+
+  const modeSelect = document.getElementById("modeSelect");
+  if (modeSelect) modeSelect.disabled = active;
+
+  document.querySelectorAll(".sort-button").forEach(button => {
+    button.disabled = active;
+  });
+
+  document.body.classList.toggle("online-room-mode", active);
+
+  if (active) {
+    setOptionControlsLocked(true);
+  } else {
+    setMultiplayerControls(false);
+  }
+}
+
+function renderOnlineRoomStatus(roomData = null) {
+  const panel = document.getElementById("onlineRoomStatus");
+  if (!panel) return;
+
+  if (!isOnlineRoomActive()) {
+    panel.hidden = true;
+    requestAnimationFrame(fitLayoutToViewport);
+    return;
+  }
+
+  panel.hidden = false;
+  document.getElementById("onlineRoomCode").textContent = onlineRoom.code;
+
+  const hostName = roomData && roomData.host ? roomData.host.name : (onlineRoom.hostName || "Player 1");
+  const guestName = roomData && roomData.guest ? roomData.guest.name : "Waiting for Player 2…";
+
+  document.getElementById("onlineHostName").textContent = hostName;
+  document.getElementById("onlineGuestName").textContent = guestName;
+
+  const state = document.getElementById("onlineConnectionState");
+  state.classList.remove("connected", "waiting", "error");
+
+  if (roomData && roomData.guest) {
+    state.textContent = "Connected — both players are in the room";
+    state.classList.add("connected");
+  } else {
+    state.textContent = "Waiting for Player 2 to join";
+    state.classList.add("waiting");
+  }
+
+  requestAnimationFrame(fitLayoutToViewport);
+}
+
+async function initialiseFirebaseOnline() {
+  updateFirebaseLoadStatus();
+
+  try {
+    if (!window.PERIODIC_TABLE_FIREBASE_CONFIG) {
+      throw new Error("firebase-config.js is missing");
+    }
+
+    const version = "12.17.1";
+    const appModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-app.js`);
+    const dbModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-database.js`);
+
+    const app = appModule.initializeApp(window.PERIODIC_TABLE_FIREBASE_CONFIG);
+    const database = dbModule.getDatabase(app);
+
+    firebaseOnline.api = {
+      database,
+      ref: dbModule.ref,
+      get: dbModule.get,
+      set: dbModule.set,
+      update: dbModule.update,
+      remove: dbModule.remove,
+      runTransaction: dbModule.runTransaction,
+      onValue: dbModule.onValue,
+      onDisconnect: dbModule.onDisconnect,
+      serverTimestamp: dbModule.serverTimestamp
+    };
+
+    firebaseOnline.ready = true;
+    firebaseOnline.error = null;
+  } catch (error) {
+    firebaseOnline.ready = false;
+    firebaseOnline.error = error && error.message ? error.message : String(error);
+    console.error("Firebase online setup failed:", error);
+  }
+
+  updateFirebaseLoadStatus();
+}
+
+async function findUnusedRoomCode(maxAttempts = 12) {
+  const api = firebaseOnline.api;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const code = randomRoomCode();
+    const roomRef = api.ref(api.database, `rooms/${code}`);
+    const snapshot = await api.get(roomRef);
+    if (!snapshot.exists()) return code;
+  }
+
+  throw new Error("Could not generate an unused room code. Please try again.");
+}
+
+function stopOnlineRoomListener() {
+  if (typeof onlineRoomUnsubscribe === "function") {
+    onlineRoomUnsubscribe();
+  }
+  onlineRoomUnsubscribe = null;
+}
+
+function listenToOnlineRoom() {
+  stopOnlineRoomListener();
+  if (!isOnlineRoomActive()) return;
+
+  const api = firebaseOnline.api;
+  const roomRef = api.ref(api.database, `rooms/${onlineRoom.code}`);
+
+  onlineRoomUnsubscribe = api.onValue(
+    roomRef,
+    snapshot => {
+      if (!isOnlineRoomActive()) return;
+
+      if (!snapshot.exists()) {
+        const state = document.getElementById("onlineConnectionState");
+        if (state) {
+          state.textContent = "Room closed";
+          state.className = "online-connection-state error";
+        }
+
+        if (onlineRoom.role === "guest") {
+          window.setTimeout(() => {
+            alert("The host has closed this room.");
+            leaveOnlineRoom(false);
+          }, 50);
+        }
+        return;
+      }
+
+      const data = snapshot.val();
+      onlineRoom.lastData = data;
+      renderOnlineRoomStatus(data);
+    },
+    error => {
+      const state = document.getElementById("onlineConnectionState");
+      if (state) {
+        state.textContent = `Connection error: ${error.message}`;
+        state.className = "online-connection-state error";
+      }
+    }
+  );
+}
+
+async function createOnlineRoom() {
+  if (!firebaseOnline.ready) {
+    setOnlineSetupMessage("Firebase is not ready yet.", true);
+    return;
+  }
+
+  const hostName = cleanPlayerName(
+    document.getElementById("onlineHostNameInput").value,
+    "Player 1"
+  );
+  const difficulty = document.getElementById("onlineDifficultySelect").value;
+  const elementLimit = Number(document.getElementById("onlineElementSetSelect").value) || 20;
+
+  setOnlineSetupMessage("Creating room…");
+
+  try {
+    const api = firebaseOnline.api;
+    const code = await findUnusedRoomCode();
+    const clientId = makeClientId();
+    const roomRef = api.ref(api.database, `rooms/${code}`);
+
+    await api.set(roomRef, {
+      version: "21.2-stage1",
+      status: "waiting",
+      createdAt: api.serverTimestamp(),
+      host: {
+        id: clientId,
+        name: hostName
+      },
+      guest: null,
+      settings: {
+        difficulty,
+        elementLimit
+      }
+    });
+
+    try {
+      await api.onDisconnect(roomRef).remove();
+    } catch (disconnectError) {
+      console.warn("Could not register host onDisconnect cleanup:", disconnectError);
+    }
+
+    onlineRoom = {
+      code,
+      role: "host",
+      clientId,
+      hostName
+    };
+
+    playMode = "online";
+    document.getElementById("playModeSelect").value = "online";
+    document.getElementById("onlineMultiplayerDialog").close();
+
+    setOnlineRoomControls(true);
+    renderOnlineRoomStatus();
+    listenToOnlineRoom();
+  } catch (error) {
+    console.error(error);
+    setOnlineSetupMessage(error.message || String(error), true);
+  }
+}
+
+async function joinOnlineRoom() {
+  if (!firebaseOnline.ready) {
+    setOnlineSetupMessage("Firebase is not ready yet.", true);
+    return;
+  }
+
+  const guestName = cleanPlayerName(
+    document.getElementById("onlineGuestNameInput").value,
+    "Player 2"
+  );
+  const code = normaliseRoomCode(
+    document.getElementById("onlineRoomCodeInput").value
+  );
+
+  if (code.length !== 6) {
+    setOnlineSetupMessage("Enter the 6-character room code.", true);
+    return;
+  }
+
+  setOnlineSetupMessage("Joining room…");
+
+  try {
+    const api = firebaseOnline.api;
+    const roomRef = api.ref(api.database, `rooms/${code}`);
+    const clientId = makeClientId();
+
+    const result = await api.runTransaction(roomRef, current => {
+      if (current === null) return;
+      if (current.guest && current.guest.id !== clientId) return;
+
+      current.guest = {
+        id: clientId,
+        name: guestName
+      };
+      current.status = "connected";
+      return current;
+    });
+
+    if (!result.committed) {
+      const existing = await api.get(roomRef);
+      if (!existing.exists()) {
+        throw new Error("Room not found. Check the code and try again.");
+      }
+      throw new Error("That room already has two players.");
+    }
+
+    const guestRef = api.ref(api.database, `rooms/${code}/guest`);
+    const statusRef = api.ref(api.database, `rooms/${code}/status`);
+
+    try {
+      const disconnectGuest = api.onDisconnect(guestRef);
+      await disconnectGuest.remove();
+      const disconnectStatus = api.onDisconnect(statusRef);
+      await disconnectStatus.set("waiting");
+    } catch (disconnectError) {
+      console.warn("Could not register guest onDisconnect cleanup:", disconnectError);
+    }
+
+    const roomData = result.snapshot.val();
+
+    onlineRoom = {
+      code,
+      role: "guest",
+      clientId,
+      hostName: roomData && roomData.host ? roomData.host.name : "Player 1"
+    };
+
+    playMode = "online";
+    document.getElementById("playModeSelect").value = "online";
+    document.getElementById("onlineMultiplayerDialog").close();
+
+    setOnlineRoomControls(true);
+    renderOnlineRoomStatus(roomData);
+    listenToOnlineRoom();
+  } catch (error) {
+    console.error(error);
+    setOnlineSetupMessage(error.message || String(error), true);
+  }
+}
+
+async function leaveOnlineRoom(removeFromDatabase = true) {
+  if (!onlineRoom) {
+    playMode = "single";
+    document.getElementById("playModeSelect").value = "single";
+    setOnlineRoomControls(false);
+    renderOnlineRoomStatus();
+    return;
+  }
+
+  const leavingRoom = onlineRoom;
+  stopOnlineRoomListener();
+
+  if (removeFromDatabase && firebaseOnline.ready) {
+    try {
+      const api = firebaseOnline.api;
+
+      if (leavingRoom.role === "host") {
+        await api.remove(api.ref(api.database, `rooms/${leavingRoom.code}`));
+      } else {
+        await api.update(api.ref(api.database, `rooms/${leavingRoom.code}`), {
+          guest: null,
+          status: "waiting"
+        });
+      }
+    } catch (error) {
+      console.warn("Could not clean up Firebase room:", error);
+    }
+  }
+
+  onlineRoom = null;
+  playMode = "single";
+
+  document.body.classList.remove("online-room-mode");
+  document.getElementById("playModeSelect").value = "single";
+  setOnlineRoomControls(false);
+  renderOnlineRoomStatus();
+  requestAnimationFrame(fitLayoutToViewport);
+}
+
+function openOnlineDialog() {
+  document.getElementById("onlineDifficultySelect").value =
+    document.getElementById("modeSelect").value;
+
+  const defaultSet = modeConfig.multiplayer && modeConfig.multiplayer.defaultElementSet
+    ? String(modeConfig.multiplayer.defaultElementSet)
+    : "20";
+
+  document.getElementById("onlineElementSetSelect").value =
+    ["20", "118"].includes(defaultSet) ? defaultSet : "20";
+
+  document.getElementById("onlineRoomCodeInput").value = "";
+  setOnlineSetupMessage("");
+  updateFirebaseLoadStatus();
+  document.getElementById("onlineMultiplayerDialog").showModal();
+}
+
+function isLocalMultiplayerActive() {
+  return playMode === "local" && localGame && localGame.status === "playing";
+}
+
+function getPlayableElements() {
+  if (!isLocalMultiplayerActive()) return elements;
+
+  const limit = localGame.elementLimit;
+  return elements.filter(el => el[0] <= limit);
+}
+
+function getMultiplayerStreakPoints() {
+  const configured = modeConfig.multiplayer && Array.isArray(modeConfig.multiplayer.streakPoints)
+    ? modeConfig.multiplayer.streakPoints
+    : DEFAULT_MODE_CONFIG.multiplayer.streakPoints;
+
+  return configured.length ? configured : [10, 12, 14, 16, 18];
+}
+
+function pointsForStreak(streak) {
+  const points = getMultiplayerStreakPoints();
+  const index = Math.max(0, Math.min(points.length - 1, streak - 1));
+  return Number(points[index]) || 0;
+}
+
+function activePlayer() {
+  if (!localGame) return null;
+  return localGame.players[localGame.currentPlayer];
+}
+
+function setTurnFeedback(message, type = "") {
+  const feedback = document.getElementById("turnFeedback");
+  if (!feedback) return;
+
+  feedback.textContent = message;
+  feedback.classList.remove("good", "bad");
+  if (type) feedback.classList.add(type);
+}
+
+function updateMultiplayerStatus() {
+  const panel = document.getElementById("multiplayerStatus");
+  if (!panel) return;
+
+  const active = isLocalMultiplayerActive();
+  panel.hidden = !active;
+
+  if (!active) {
+    requestAnimationFrame(fitLayoutToViewport);
+    return;
+  }
+
+  localGame.players.forEach((player, index) => {
+    document.getElementById(`playerName${index}`).textContent = player.name;
+    document.getElementById(`playerScore${index}`).textContent = `${player.score} pts`;
+    document.getElementById(`playerStreak${index}`).textContent = `Streak ${player.streak}`;
+
+    document.getElementById(`playerCard${index}`).classList.toggle(
+      "active-player",
+      index === localGame.currentPlayer
+    );
+  });
+
+  document.getElementById("turnLabel").textContent =
+    `${localGame.players[localGame.currentPlayer].name}'s turn`;
+
+  requestAnimationFrame(fitLayoutToViewport);
+}
+
+function setMultiplayerControls(active) {
+  const checkButton = document.getElementById("checkAnswersButton");
+  const hintButton = document.getElementById("hintButton");
+  const showButton = document.getElementById("showAnswersButton");
+  const modeSelect = document.getElementById("modeSelect");
+  const sortGroup = document.getElementById("sortControlsGroup");
+
+  if (checkButton) {
+    checkButton.disabled = active;
+    checkButton.title = active ? "Answers are checked immediately in multiplayer." : "";
+  }
+  if (hintButton) {
+    hintButton.disabled = active;
+    hintButton.title = active ? "Hints are disabled in competitive multiplayer." : "";
+  }
+  if (showButton) {
+    showButton.disabled = active;
+    showButton.title = active ? "Show Answers is disabled in competitive multiplayer." : "";
+  }
+
+  if (modeSelect) modeSelect.disabled = active;
+
+  document.querySelectorAll(".sort-button").forEach(button => {
+    button.disabled = active;
+  });
+
+  if (sortGroup) sortGroup.classList.toggle("locked-option", active);
+
+  if (active) {
+    setOptionControlsLocked(true);
+  } else {
+    const selectedMode = document.getElementById("modeSelect").value;
+    const preset = selectedMode === "custom"
+      ? modeConfig.customDefaults
+      : (modeConfig[selectedMode] || DEFAULT_MODE_CONFIG[selectedMode]);
+
+    setOptionControlsLocked(Boolean(preset && preset.lockControls));
+  }
+}
+
+function applyActiveGameSlots() {
+  const active = isLocalMultiplayerActive();
+  const limit = active ? localGame.elementLimit : 118;
+
+  document.querySelectorAll(".slot").forEach(slot => {
+    const number = Number(slot.dataset.number);
+    const inactive = active && number > limit;
+
+    slot.classList.toggle("inactive-game-slot", inactive);
+
+    if (inactive) {
+      slot.draggable = false;
+    } else if (slot.dataset.locked !== "true") {
+      slot.draggable = true;
+    }
+  });
+}
+
+function clearMultiplayerLocks() {
+  document.querySelectorAll(".slot").forEach(slot => {
+    slot.dataset.locked = "false";
+    slot.classList.remove("multiplayer-locked", "inactive-game-slot");
+    slot.draggable = true;
+  });
+}
+
+function shuffledSymbolsForLimit(limit) {
+  return elements
+    .filter(el => el[0] <= limit)
+    .map(el => el[1])
+    .sort(() => Math.random() - 0.5);
+}
+
+function resetLocalGameState() {
+  if (!localGame) return;
+
+  localGame.currentPlayer = 0;
+  localGame.processing = false;
+  localGame.completedSymbols = [];
+  localGame.elementOrder = shuffledSymbolsForLimit(localGame.elementLimit);
+
+  localGame.players.forEach(player => {
+    player.score = 0;
+    player.streak = 0;
+    player.bestStreak = 0;
+    player.correct = 0;
+    player.attempts = 0;
+  });
+
+  document.body.classList.remove("multiplayer-processing");
+  document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
+  clearMultiplayerLocks();
+  applyActiveGameSlots();
+
+  currentSort = "game";
+  buildList(currentSort);
+  updateMultiplayerStatus();
+  setTurnFeedback("Place an element.");
+}
+
+function startLocalMultiplayer() {
+  const player1 = document.getElementById("player1Input").value.trim() || "Player 1";
+  const player2 = document.getElementById("player2Input").value.trim() || "Player 2";
+  const difficulty = document.getElementById("localDifficultySelect").value;
+  const elementLimit = Number(document.getElementById("localElementSetSelect").value) || 20;
+
+  document.getElementById("modeSelect").value = difficulty;
+  setMode(difficulty);
+
+  playMode = "local";
+  localGame = {
+    status: "playing",
+    elementLimit,
+    difficulty,
+    currentPlayer: 0,
+    processing: false,
+    completedSymbols: [],
+    elementOrder: shuffledSymbolsForLimit(elementLimit),
+    players: [
+      { name: player1, score: 0, streak: 0, bestStreak: 0, correct: 0, attempts: 0 },
+      { name: player2, score: 0, streak: 0, bestStreak: 0, correct: 0, attempts: 0 }
+    ]
+  };
+
+  document.getElementById("playModeSelect").value = "local";
+  document.getElementById("localMultiplayerDialog").close();
+
+  document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
+  clearMultiplayerLocks();
+  applyActiveGameSlots();
+
+  currentSort = "game";
+  buildList(currentSort);
+  setMultiplayerControls(true);
+  updateMultiplayerStatus();
+  setTurnFeedback("Place an element.");
+  requestAnimationFrame(fitLayoutToViewport);
+}
+
+function endLocalMultiplayer(resetTableAfter = true) {
+  playMode = "single";
+  if (localGame) localGame.status = "ended";
+
+  document.body.classList.remove("multiplayer-processing");
+  clearMultiplayerLocks();
+
+  if (resetTableAfter) {
+    document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
+  }
+
+  localGame = null;
+  currentSort = "alpha";
+
+  document.getElementById("playModeSelect").value = "single";
+  setMultiplayerControls(false);
+  applyActiveGameSlots();
+  buildList(currentSort);
+  updateMultiplayerStatus();
+  requestAnimationFrame(fitLayoutToViewport);
+}
+
+function setPlayMode(mode) {
+  if (mode === "single") {
+    if (isLocalMultiplayerActive()) {
+      const leave = window.confirm("End the current local multiplayer game and return to single player?");
+      if (!leave) {
+        document.getElementById("playModeSelect").value = "local";
+        return;
+      }
+      endLocalMultiplayer(true);
+      return;
+    }
+
+    if (isOnlineRoomActive()) {
+      const leave = window.confirm("Leave the current online room and return to single player?");
+      if (!leave) {
+        document.getElementById("playModeSelect").value = "online";
+        return;
+      }
+      leaveOnlineRoom(true);
+      return;
+    }
+
+    playMode = "single";
+    return;
+  }
+
+  if (mode === "local") {
+    if (isOnlineRoomActive()) {
+      document.getElementById("playModeSelect").value = "online";
+      alert("Leave the online room before starting a local multiplayer game.");
+      return;
+    }
+
+    const dialog = document.getElementById("localMultiplayerDialog");
+    document.getElementById("localDifficultySelect").value =
+      document.getElementById("modeSelect").value;
+
+    const defaultSet = modeConfig.multiplayer && modeConfig.multiplayer.defaultElementSet
+      ? String(modeConfig.multiplayer.defaultElementSet)
+      : "20";
+
+    document.getElementById("localElementSetSelect").value =
+      ["20", "118"].includes(defaultSet) ? defaultSet : "20";
+
+    dialog.showModal();
+    return;
+  }
+
+  if (mode === "online") {
+    if (isLocalMultiplayerActive()) {
+      document.getElementById("playModeSelect").value = "local";
+      alert("End the local multiplayer game before opening an online room.");
+      return;
+    }
+
+    if (isOnlineRoomActive()) {
+      document.getElementById("playModeSelect").value = "online";
+      return;
+    }
+
+    openOnlineDialog();
+  }
+}
+
+function finishLocalGame() {
+  if (!localGame) return;
+
+  localGame.status = "finished";
+  localGame.processing = false;
+  document.body.classList.remove("multiplayer-processing");
+  setMultiplayerControls(true);
+
+  const [p1, p2] = localGame.players;
+  const title = p1.score === p2.score
+    ? "Draw"
+    : `${p1.score > p2.score ? p1.name : p2.name} wins!`;
+
+  document.getElementById("resultsTitle").textContent = "Game complete";
+  document.getElementById("resultsSummary").textContent =
+    `${title} Final score: ${p1.score} – ${p2.score}`;
+
+  localGame.players.forEach((player, index) => {
+    const accuracy = player.attempts
+      ? Math.round((player.correct / player.attempts) * 100)
+      : 0;
+
+    document.getElementById(`resultName${index}`).textContent = player.name;
+    document.getElementById(`resultScore${index}`).textContent = player.score;
+    document.getElementById(`resultCorrect${index}`).textContent =
+      `${player.correct} correct placement${player.correct === 1 ? "" : "s"}`;
+    document.getElementById(`resultAccuracy${index}`).textContent =
+      `${accuracy}% accuracy`;
+    document.getElementById(`resultStreak${index}`).textContent =
+      `Best streak: ${player.bestStreak}`;
+  });
+
+  updateMultiplayerStatus();
+  setTurnFeedback("Game complete.");
+  document.getElementById("localResultsDialog").showModal();
+}
+
+function handleMultiplayerDrop(slot, symbol) {
+  if (!isLocalMultiplayerActive() || localGame.processing) return;
+  if (!symbol) return;
+  if (slot.classList.contains("inactive-game-slot")) return;
+  if (slot.dataset.locked === "true") return;
+  if (!getPlayableElements().some(el => el[1] === symbol)) return;
+  if (localGame.completedSymbols.includes(symbol)) return;
+
+  const player = activePlayer();
+  player.attempts += 1;
+
+  if (slot.dataset.answer === symbol) {
+    player.streak += 1;
+    player.bestStreak = Math.max(player.bestStreak, player.streak);
+    player.correct += 1;
+
+    const points = pointsForStreak(player.streak);
+    player.score += points;
+
+    setSlotContent(slot, symbol);
+    slot.dataset.locked = "true";
+    slot.draggable = false;
+    slot.classList.add("multiplayer-locked", "correct");
+
+    localGame.completedSymbols.push(symbol);
+
+    setTurnFeedback(
+      `Correct — +${points} points. ${player.name} keeps the turn.`,
+      "good"
+    );
+
+    updateMultiplayerStatus();
+    buildList(currentSort);
+
+    window.setTimeout(() => slot.classList.remove("correct"), 650);
+
+    if (localGame.completedSymbols.length >= localGame.elementLimit) {
+      window.setTimeout(finishLocalGame, 700);
+    }
+    return;
+  }
+
+  localGame.processing = true;
+  document.body.classList.add("multiplayer-processing");
+  setSlotContent(slot, symbol);
+  slot.classList.add("wrong");
+
+  setTurnFeedback(
+    `Incorrect — ${player.name}'s streak ends. Turn passes.`,
+    "bad"
+  );
+  updateMultiplayerStatus();
+
+  window.setTimeout(() => {
+    setSlotContent(slot, "");
+    slot.classList.remove("wrong");
+
+    player.streak = 0;
+    localGame.currentPlayer = localGame.currentPlayer === 0 ? 1 : 0;
+    localGame.processing = false;
+    document.body.classList.remove("multiplayer-processing");
+
+    buildList(currentSort);
+    updateMultiplayerStatus();
+    setTurnFeedback("Place an element.");
+  }, 850);
+}
 
 function getCategory(number, symbol, group, period) {
   const noble = ["He","Ne","Ar","Kr","Xe","Rn","Og"];
@@ -141,6 +972,9 @@ function setSlotContent(slot, symbol) {
   if (!symbol) {
     slot.dataset.placed = "";
     sym.textContent = "";
+    if (slot.dataset.locked !== "true") {
+      slot.classList.remove("multiplayer-locked");
+    }
     slot.classList.remove("filled", "correct", "wrong");
     updateSlotTitle(slot);
     return;
@@ -164,6 +998,7 @@ function makeSlot(el, table, lowerTable = false) {
   slot.className = "slot " + categoryClass(category);
   slot.dataset.answer = symbol;
   slot.dataset.placed = "";
+  slot.dataset.locked = "false";
   slot.dataset.name = name;
   slot.dataset.number = number;
   slot.dataset.category = category;
@@ -338,6 +1173,8 @@ function buildTable() {
   elements.forEach(el => {
     if (el[4] >= 8) makeSlot(el, lower, true);
   });
+
+  applyActiveGameSlots();
 }
 
 function makeElementTile(el) {
@@ -356,7 +1193,11 @@ function makeElementTile(el) {
     e.dataTransfer.setData("source", "list");
   });
 
-  if (getPlacedSymbols().includes(symbol)) tile.classList.add("used");
+  const used = isLocalMultiplayerActive()
+    ? localGame.completedSymbols.includes(symbol)
+    : getPlacedSymbols().includes(symbol);
+
+  if (used) tile.classList.add("used");
   return tile;
 }
 
@@ -368,9 +1209,12 @@ function buildList(sortMode = currentSort) {
     b.classList.toggle("active", b.dataset.sort === sortMode);
   });
 
-  let sorted = [...elements];
+  let sorted = [...getPlayableElements()];
 
-  if (sortMode === "alpha") sorted.sort((a,b) => a[1].localeCompare(b[1]));
+  if (sortMode === "game" && isLocalMultiplayerActive()) {
+    const position = new Map(localGame.elementOrder.map((symbol, index) => [symbol, index]));
+    sorted.sort((a, b) => (position.get(a[1]) ?? 999) - (position.get(b[1]) ?? 999));
+  } else if (sortMode === "alpha") sorted.sort((a,b) => a[1].localeCompare(b[1]));
   if (sortMode === "atomic") sorted.sort((a,b) => a[0] - b[0]);
   if (sortMode === "random") sorted.sort(() => Math.random() - 0.5);
   if (sortMode === "category") {
@@ -400,7 +1244,9 @@ function buildList(sortMode = currentSort) {
     list.appendChild(makeElementTile(el));
   });
 
-  document.getElementById("elementsTitle").textContent = sortMode === "alpha" ? "Elements (A–Z)" :
+  document.getElementById("elementsTitle").textContent =
+    sortMode === "game" ? `Elements (${localGame.elementLimit})` :
+    sortMode === "alpha" ? "Elements (A–Z)" :
     sortMode === "atomic" ? "Elements (Atomic No.)" :
     sortMode === "category" ? "Elements (Category)" : "Elements (Shuffled)";
 
@@ -411,10 +1257,18 @@ function buildList(sortMode = currentSort) {
 
 function dropOnSlot(e) {
   e.preventDefault();
+
+  if (isOnlineRoomActive()) return;
+
   const symbol = e.dataTransfer.getData("text/plain");
   if (!symbol) return;
 
-  // Remove this element from any old position first.
+  if (isLocalMultiplayerActive()) {
+    handleMultiplayerDrop(this, symbol);
+    return;
+  }
+
+  // Single player: remove this element from any old position first.
   document.querySelectorAll(".slot").forEach(slot => {
     if (slot.dataset.placed === symbol) setSlotContent(slot, "");
   });
@@ -424,6 +1278,16 @@ function dropOnSlot(e) {
 }
 
 function dragFromSlot(e) {
+  if (isOnlineRoomActive()) {
+    e.preventDefault();
+    return;
+  }
+
+  if (isLocalMultiplayerActive()) {
+    e.preventDefault();
+    return;
+  }
+
   const symbol = this.dataset.placed;
   if (!symbol) {
     e.preventDefault();
@@ -440,6 +1304,7 @@ function dragFromSlot(e) {
 }
 
 function sortElements(mode) {
+  if (isLocalMultiplayerActive() || isOnlineRoomActive()) return;
   buildList(mode);
 }
 
@@ -528,6 +1393,8 @@ function setMode(mode) {
 }
 
 function checkAnswers() {
+  if (isLocalMultiplayerActive() || isOnlineRoomActive()) return;
+
   let correct = 0;
   let wrong = 0;
 
@@ -548,6 +1415,8 @@ function checkAnswers() {
 }
 
 function showAnswers() {
+  if (isLocalMultiplayerActive() || isOnlineRoomActive()) return;
+
   document.querySelectorAll(".slot").forEach(slot => {
     setSlotContent(slot, slot.dataset.answer);
     slot.classList.add("correct");
@@ -556,11 +1425,22 @@ function showAnswers() {
 }
 
 function resetTable() {
+  if (isOnlineRoomActive()) return;
+
+  if (isLocalMultiplayerActive()) {
+    if (window.confirm("Restart this local multiplayer game? Scores and streaks will return to zero.")) {
+      resetLocalGameState();
+    }
+    return;
+  }
+
   document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
   buildList(currentSort);
 }
 
 function hint() {
+  if (isLocalMultiplayerActive() || isOnlineRoomActive()) return;
+
   const emptyWrong = [...document.querySelectorAll(".slot")]
     .filter(slot => slot.dataset.placed !== slot.dataset.answer);
 
@@ -579,6 +1459,12 @@ function hint() {
 }
 
 function updateScore(correct = null, wrong = null) {
+  if (isLocalMultiplayerActive()) {
+    const placed = localGame.completedSymbols.length;
+    score.textContent = `${placed} of ${localGame.elementLimit} completed • ${localGame.elementLimit - placed} remaining`;
+    return;
+  }
+
   const placed = getPlacedSymbols().length;
   if (correct === null) {
     score.textContent = `${placed} of 118 placed`;
@@ -623,6 +1509,10 @@ function normaliseModeConfig(loaded) {
     customDefaults: {
       ...DEFAULT_MODE_CONFIG.customDefaults,
       ...((loaded && loaded.customDefaults) || {})
+    },
+    multiplayer: {
+      ...DEFAULT_MODE_CONFIG.multiplayer,
+      ...((loaded && loaded.multiplayer) || {})
     }
   };
 }
@@ -845,6 +1735,82 @@ document.getElementById("tooltipsEnabled").addEventListener("change", event => {
 });
 
 
+
+
+document.getElementById("createOnlineRoomButton").addEventListener("click", createOnlineRoom);
+document.getElementById("joinOnlineRoomButton").addEventListener("click", joinOnlineRoom);
+
+document.getElementById("onlineRoomCodeInput").addEventListener("input", event => {
+  event.target.value = normaliseRoomCode(event.target.value);
+});
+
+document.getElementById("cancelOnlineGameButton").addEventListener("click", () => {
+  document.getElementById("onlineMultiplayerDialog").close();
+  document.getElementById("playModeSelect").value = isOnlineRoomActive() ? "online" : "single";
+});
+
+document.getElementById("onlineMultiplayerDialog").addEventListener("cancel", event => {
+  event.preventDefault();
+  document.getElementById("onlineMultiplayerDialog").close();
+  document.getElementById("playModeSelect").value = isOnlineRoomActive() ? "online" : "single";
+});
+
+document.getElementById("copyRoomCodeButton").addEventListener("click", async () => {
+  if (!onlineRoom) return;
+
+  try {
+    await navigator.clipboard.writeText(onlineRoom.code);
+    const button = document.getElementById("copyRoomCodeButton");
+    const oldText = button.textContent;
+    button.textContent = "Copied";
+    window.setTimeout(() => {
+      button.textContent = oldText;
+    }, 1000);
+  } catch (error) {
+    window.prompt("Copy this room code:", onlineRoom.code);
+  }
+});
+
+document.getElementById("leaveOnlineRoomButton").addEventListener("click", () => {
+  if (window.confirm("Leave this online room?")) {
+    leaveOnlineRoom(true);
+  }
+});
+
+document.getElementById("startLocalGameButton").addEventListener("click", startLocalMultiplayer);
+
+document.getElementById("cancelLocalGameButton").addEventListener("click", () => {
+  document.getElementById("localMultiplayerDialog").close();
+  document.getElementById("playModeSelect").value = isLocalMultiplayerActive() ? "local" : "single";
+});
+
+document.getElementById("localMultiplayerDialog").addEventListener("cancel", event => {
+  event.preventDefault();
+  document.getElementById("localMultiplayerDialog").close();
+  document.getElementById("playModeSelect").value = isLocalMultiplayerActive() ? "local" : "single";
+});
+
+document.getElementById("endLocalGameButton").addEventListener("click", () => {
+  if (window.confirm("End this local multiplayer game?")) {
+    endLocalMultiplayer(true);
+  }
+});
+
+document.getElementById("playAgainButton").addEventListener("click", () => {
+  document.getElementById("localResultsDialog").close();
+
+  if (localGame) {
+    localGame.status = "playing";
+    resetLocalGameState();
+    setMultiplayerControls(true);
+  }
+});
+
+document.getElementById("returnSingleButton").addEventListener("click", () => {
+  document.getElementById("localResultsDialog").close();
+  endLocalMultiplayer(true);
+});
+
 window.addEventListener("resize", () => {
   requestAnimationFrame(fitLayoutToViewport);
 });
@@ -862,7 +1828,12 @@ document.getElementById("burgerMenu").addEventListener("toggle", () => {
   buildTable();
   buildLegend();
   buildList(currentSort);
+  document.getElementById("playModeSelect").value = "single";
+  updateMultiplayerStatus();
   document.getElementById("modeSelect").value = "beginner";
   setMode("beginner");
+  renderOnlineRoomStatus();
+  updateFirebaseLoadStatus();
+  initialiseFirebaseOnline();
   requestAnimationFrame(fitLayoutToViewport);
 })();

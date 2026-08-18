@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Periodic Table Practice v20</title>
+<title>Periodic Table Practice v21.2-stage1</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,11 +13,11 @@
 
     <div class="toolbar">
       <div class="top-actions">
-        <button onclick="checkAnswers()">✓ Check answers</button>
-        <button onclick="hint()">💡 Hint</button>
-        <button onclick="showAnswers()">👁 Show answers</button>
-        <button onclick="resetTable()">↻ Reset</button>
-        <button onclick="window.print()">Print</button>
+        <button id="checkAnswersButton" onclick="checkAnswers()">✓ Check answers</button>
+        <button id="hintButton" onclick="hint()">💡 Hint</button>
+        <button id="showAnswersButton" onclick="showAnswers()">👁 Show answers</button>
+        <button id="resetButton" onclick="resetTable()">↻ Reset</button>
+        <button id="printButton" onclick="window.print()">Print</button>
       </div>
 
       <details class="burger-menu" id="burgerMenu">
@@ -25,6 +25,15 @@
         <div class="burger-popover">
 
           <div class="menu-section">
+            <span class="tool-label">Play mode</span>
+            <select id="playModeSelect" onchange="setPlayMode(this.value)">
+              <option value="single">Single player</option>
+              <option value="local">Local 2 player</option>
+              <option value="online">Online 2 player — test</option>
+            </select>
+          </div>
+
+          <div class="menu-section" id="sortControlsGroup">
             <span class="tool-label">Sort elements</span>
             <div class="button-row">
               <button class="sort-button" data-sort="atomic" onclick="sortElements('atomic')">Atomic number</button>
@@ -114,7 +123,44 @@
 
         </div>
       </details>
-    </div>    </div>
+    </div>
+
+    <div id="multiplayerStatus" class="multiplayer-status" hidden>
+      <div class="player-card" id="playerCard0">
+        <div class="player-name" id="playerName0">Player 1</div>
+        <div class="player-stats"><span id="playerScore0">0 pts</span><span id="playerStreak0">Streak 0</span></div>
+      </div>
+      <div class="turn-panel">
+        <div class="turn-label" id="turnLabel">Player 1's turn</div>
+        <div class="turn-feedback" id="turnFeedback">Place an element.</div>
+      </div>
+      <div class="player-card" id="playerCard1">
+        <div class="player-name" id="playerName1">Player 2</div>
+        <div class="player-stats"><span id="playerScore1">0 pts</span><span id="playerStreak1">Streak 0</span></div>
+      </div>
+      <button id="endLocalGameButton" type="button">End game</button>
+    </div>
+
+    <div id="onlineRoomStatus" class="online-room-status" hidden>
+      <div>
+        <div class="online-room-label">Online room</div>
+        <div class="online-room-code-line">
+          <strong id="onlineRoomCode">------</strong>
+          <button id="copyRoomCodeButton" type="button">Copy code</button>
+        </div>
+      </div>
+      <div class="online-room-players">
+        <span id="onlineHostName">Player 1</span>
+        <span class="online-vs">vs</span>
+        <span id="onlineGuestName">Waiting for Player 2…</span>
+      </div>
+      <div>
+        <div id="onlineConnectionState" class="online-connection-state">Connecting…</div>
+        <div class="online-stage-note">v21.2 Stage 1: room connection test only</div>
+      </div>
+      <button id="leaveOnlineRoomButton" type="button">Leave room</button>
+    </div>
+
   </div>
 
   <div class="main" id="mainLayout">
@@ -141,8 +187,137 @@
       <div class="score" id="score"></div>
     </aside>
   </div>
+  
+  <dialog id="localMultiplayerDialog" class="game-dialog">
+    <div class="dialog-content">
+      <h2>Local 2 Player</h2>
+      <p>Two players take turns on this computer. A correct answer keeps the turn; a wrong answer passes it.</p>
+
+      <div class="dialog-grid">
+        <label>
+          <span>Player 1</span>
+          <input id="player1Input" type="text" maxlength="24" value="Player 1">
+        </label>
+        <label>
+          <span>Player 2</span>
+          <input id="player2Input" type="text" maxlength="24" value="Player 2">
+        </label>
+        <label>
+          <span>Difficulty</span>
+          <select id="localDifficultySelect">
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label>
+          <span>Elements</span>
+          <select id="localElementSetSelect">
+            <option value="20">First 20 — quick test game</option>
+            <option value="118">All 118</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="scoring-summary">
+        Correct: keep your turn. Scores per streak: 10, 12, 14, 16, then 18 points. Wrong: 0 points, streak resets and the turn passes.
+      </div>
+
+      <div class="dialog-actions">
+        <button id="cancelLocalGameButton" type="button">Cancel</button>
+        <button id="startLocalGameButton" type="button" class="primary-action">Start game</button>
+      </div>
+    </div>
+  </dialog>
+
+
+  <dialog id="onlineMultiplayerDialog" class="game-dialog online-dialog">
+    <div class="dialog-content">
+      <h2>Online 2 Player — Connection Test</h2>
+      <p>This stage only proves that two browsers can create and join the same Firebase room. Element moves are not synchronised yet.</p>
+
+      <div id="firebaseLoadStatus" class="firebase-load-status">Connecting to Firebase…</div>
+
+      <div class="online-setup-grid">
+        <section class="online-setup-card">
+          <h3>Create a room</h3>
+          <label>
+            <span>Your name</span>
+            <input id="onlineHostNameInput" type="text" maxlength="24" value="Player 1">
+          </label>
+          <label>
+            <span>Difficulty</span>
+            <select id="onlineDifficultySelect">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label>
+            <span>Elements</span>
+            <select id="onlineElementSetSelect">
+              <option value="20">First 20 — quick test game</option>
+              <option value="118">All 118</option>
+            </select>
+          </label>
+          <button id="createOnlineRoomButton" type="button" class="primary-action">Create room</button>
+        </section>
+
+        <section class="online-setup-card">
+          <h3>Join a room</h3>
+          <label>
+            <span>Your name</span>
+            <input id="onlineGuestNameInput" type="text" maxlength="24" value="Player 2">
+          </label>
+          <label>
+            <span>Room code</span>
+            <input id="onlineRoomCodeInput" class="room-code-input" type="text" maxlength="6" autocomplete="off" placeholder="ABC123">
+          </label>
+          <div class="join-spacer"></div>
+          <button id="joinOnlineRoomButton" type="button" class="primary-action">Join room</button>
+        </section>
+      </div>
+
+      <div id="onlineSetupMessage" class="online-setup-message"></div>
+
+      <div class="dialog-actions">
+        <button id="cancelOnlineGameButton" type="button">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="localResultsDialog" class="game-dialog">
+    <div class="dialog-content">
+      <h2 id="resultsTitle">Game complete</h2>
+      <div id="resultsSummary" class="results-summary"></div>
+      <div class="results-grid">
+        <div class="result-player">
+          <h3 id="resultName0">Player 1</h3>
+          <div><strong id="resultScore0">0</strong> points</div>
+          <div id="resultCorrect0">0 correct</div>
+          <div id="resultAccuracy0">0% accuracy</div>
+          <div id="resultStreak0">Best streak: 0</div>
+        </div>
+        <div class="result-player">
+          <h3 id="resultName1">Player 2</h3>
+          <div><strong id="resultScore1">0</strong> points</div>
+          <div id="resultCorrect1">0 correct</div>
+          <div id="resultAccuracy1">0% accuracy</div>
+          <div id="resultStreak1">Best streak: 0</div>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button id="returnSingleButton" type="button">Return to single player</button>
+        <button id="playAgainButton" type="button" class="primary-action">Play again</button>
+      </div>
+    </div>
+  </dialog>
+
 </div>
 
+<script src="firebase-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

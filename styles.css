@@ -758,3 +758,393 @@
   font-size: 11px;
   color: var(--muted);
 }
+
+
+/* v21.1 local multiplayer */
+.multiplayer-status {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(190px, 1.35fr) minmax(150px, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.multiplayer-status[hidden] {
+  display: none;
+}
+
+.player-card,
+.turn-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #f8fafc;
+}
+
+.player-card.active-player {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+  background: #eff6ff;
+}
+
+.player-name {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.player-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.turn-panel {
+  text-align: center;
+}
+
+.turn-label {
+  font-weight: bold;
+  margin-bottom: 3px;
+}
+
+.turn-feedback {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.turn-feedback.good {
+  color: var(--success);
+  font-weight: bold;
+}
+
+.turn-feedback.bad {
+  color: var(--danger);
+  font-weight: bold;
+}
+
+.slot.multiplayer-locked {
+  cursor: default;
+}
+
+.slot.inactive-game-slot {
+  opacity: 0.14;
+  pointer-events: none;
+  filter: grayscale(1);
+}
+
+body.multiplayer-processing .element-list,
+body.multiplayer-processing .slot:not(.multiplayer-locked) {
+  pointer-events: none;
+}
+
+.game-dialog {
+  width: min(620px, calc(100vw - 28px));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0;
+  color: var(--text);
+  background: var(--panel);
+}
+
+.game-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.dialog-content {
+  padding: 20px;
+}
+
+.dialog-content h2 {
+  margin: 0 0 8px;
+}
+
+.dialog-content p {
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+
+.dialog-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.dialog-grid label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.dialog-grid input,
+.dialog-grid select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+  background: white;
+}
+
+.scoring-summary {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.primary-action {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.results-summary {
+  margin: 12px 0 16px;
+  padding: 11px;
+  border-radius: 8px;
+  background: #eff6ff;
+  text-align: center;
+  font-weight: bold;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.result-player {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 12px;
+}
+
+.result-player h3 {
+  margin: 0 0 8px;
+}
+
+.result-player div {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.result-player strong {
+  color: var(--text);
+  font-size: 24px;
+}
+
+#sortControlsGroup.locked-option button {
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  .multiplayer-status {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .turn-panel {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  #endLocalGameButton {
+    grid-column: 1 / -1;
+  }
+
+  .dialog-grid,
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* v21.2 Stage 1 — Firebase room connection test */
+.online-room-status {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: auto minmax(220px, 1fr) minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 10px;
+  background: #f8fafc;
+}
+
+.online-room-status[hidden] {
+  display: none;
+}
+
+.online-room-label,
+.online-stage-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.online-room-code-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+#onlineRoomCode {
+  font-size: 21px;
+  letter-spacing: 0.12em;
+}
+
+.online-room-code-line button {
+  padding: 4px 7px;
+  font-size: 11px;
+}
+
+.online-room-players {
+  text-align: center;
+  font-weight: bold;
+}
+
+.online-vs {
+  margin: 0 8px;
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.online-connection-state {
+  font-weight: bold;
+}
+
+.online-connection-state.connected {
+  color: var(--success);
+}
+
+.online-connection-state.waiting {
+  color: #92400e;
+}
+
+.online-connection-state.error {
+  color: var(--danger);
+}
+
+.firebase-load-status {
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin: 12px 0;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.firebase-load-status.ready {
+  background: #ecfdf5;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.firebase-load-status.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.online-setup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.online-setup-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  display: grid;
+  gap: 11px;
+  align-content: start;
+}
+
+.online-setup-card h3 {
+  margin: 0 0 2px;
+}
+
+.online-setup-card label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.online-setup-card input,
+.online-setup-card select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+  background: white;
+}
+
+.room-code-input {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: bold;
+}
+
+.join-spacer {
+  min-height: 53px;
+}
+
+.online-setup-message {
+  min-height: 18px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.online-setup-message.error {
+  color: var(--danger);
+  font-weight: bold;
+}
+
+body.online-room-mode .element-list,
+body.online-room-mode .slot {
+  pointer-events: none;
+}
+
+body.online-room-mode .element-list {
+  opacity: 0.45;
+}
+
+body.online-room-mode .slot {
+  cursor: default;
+}
+
+@media (max-width: 860px) {
+  .online-room-status {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .online-room-players {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .online-setup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .join-spacer {
+    display: none;
+  }
+}

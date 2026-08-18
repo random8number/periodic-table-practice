@@ -1,51 +1,69 @@
-# Periodic Table Practice v20 Hosted 
+# Periodic Table Practice v21.2 — Stage 1
 
-Interactive periodic-table learning game.
+This build is the first Firebase online multiplayer connection test.
 
-## GitHub Pages setup
+## Branch
 
-Upload these files to the root of the repository:
+Upload these files to the **`v21.2-online`** branch only.
 
-- `index.html`
-- `styles.css`
-- `app.js`
-- `settings.json`
+Keep:
+- `main` = stable v20
+- `v21-development` = tested v21.1 local multiplayer
+- `v21.2-online` = online development
 
-Then in GitHub:
+## What Stage 1 does
 
-1. Open **Settings**
-2. Select **Pages**
-3. Under **Build and deployment**, choose **Deploy from a branch**
-4. Select branch **main**
-5. Select folder **/(root)**
-6. Save
+- Preserves Single Player.
+- Preserves v21.1 Local 2 Player.
+- Adds **Online 2 player — test**.
+- Player 1 can create a six-character room code.
+- Player 2 can join the room from another browser/device.
+- Both browsers listen to the same Firebase Realtime Database room.
+- Both browsers should display the same player names when Player 2 joins.
+- The host can leave and close the room.
+- The guest can leave and return the room to waiting state.
+- Room data is cleaned up with Firebase `onDisconnect` where possible.
 
-GitHub Pages will publish the site from the repository.
+## Important
 
-## Mode settings
+**Element placements are deliberately disabled in online mode in Stage 1.**
 
-The preset learning modes are controlled in `settings.json`.
+This version is only intended to prove:
 
-Example:
+`Create room → room code → join room → both browsers see both players`
 
-```json
-"beginner": {
-  "tableColours": true,
-  "elementColours": true,
-  "atomicNumbers": true,
-  "tooltips": true,
-  "lockControls": true
-}
-```
+Once this is reliable, Stage 2 will synchronise game state, turns, scores, streaks and completed elements.
 
-- `tableColours`: colour the blank periodic table by category
-- `elementColours`: colour element tiles by category
-- `atomicNumbers`: show atomic numbers
-- `tooltips`: enable element hover information
-- `lockControls`: prevent the preset options being changed
+## Firebase
 
-`customDefaults` controls the starting values for Custom mode.
+The client-side Firebase configuration is in `firebase-config.js`.
 
-## Version
+The current project uses:
 
-v20 is the first hosted/GitHub Pages version.
+`https://periodic-table-practice-default-rtdb.europe-west1.firebasedatabase.app/`
+
+The build loads the Firebase JavaScript SDK from Google's CDN.
+
+## Security warning
+
+The Realtime Database is currently in **Test mode** for development. Test mode permits broad database access and must not be left as the final security configuration.
+
+Before online multiplayer is considered ready, add Firebase Authentication and restrictive Realtime Database Security Rules.
+
+## Test
+
+Use two browser windows, two Chrome profiles, or ideally two devices.
+
+1. On device/browser A choose **Online 2 player — test**.
+2. Enter the first player's name and click **Create room**.
+3. Note the six-character code.
+4. On device/browser B choose **Online 2 player — test**.
+5. Enter the second player's name and room code.
+6. Click **Join room**.
+7. Both screens should change from waiting to **Connected — both players are in the room**.
+
+If opening `index.html` directly causes a browser/module restriction, serve the folder with a small local web server, for example:
+
+`py -m http.server 8000`
+
+Then open `http://localhost:8000`.
