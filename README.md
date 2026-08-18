@@ -1,4 +1,4 @@
-# Periodic Table Practice v21.2 — Stage 1
+# Periodic Table Practice v21.2 — Stage 1.1
 
 This build is the first Firebase online multiplayer connection test.
 
@@ -67,3 +67,13 @@ If opening `index.html` directly causes a browser/module restriction, serve the 
 `py -m http.server 8000`
 
 Then open `http://localhost:8000`.
+
+
+## Stage 1.1 fix
+
+Fixed the Join Room transaction. The previous Stage 1 build could incorrectly report
+"That room already has two players" because Firebase transactions may initially receive
+a null local value before the server state has been loaded.
+
+Stage 1.1 claims only the room's `guest` slot and treats null there correctly as an
+available second-player position.
