@@ -68,3 +68,8 @@ The streak reward is capped at 18 points per element.
 
 The first online build only tests room creation, joining and synchronised player names.
 The gameplay rules above remain the target for the later online gameplay stage.
+
+
+## v21.2 Stage 2 implementation
+
+Stage 2 implements the agreed multiplayer rules across two browsers/devices using Firebase Realtime Database. Touch devices use **tap an element → tap its table position**; desktop drag-and-drop remains available.

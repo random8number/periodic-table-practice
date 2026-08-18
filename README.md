@@ -1,47 +1,40 @@
-# Periodic Table Practice v21.2 — Stage 1.2
+# Periodic Table Practice v21.2 — Stage 2
 
-This replaces the earlier Stage 1 / Stage 1.1 connection-test builds.
+Stage 2 adds the first complete two-device online game.
 
-## What was fixed
+## Upload
+Upload these files to the **`v21.2-online`** branch only.
 
-The previous Stage 1.1 ZIP accidentally still contained the original Join Room
-transaction code. Stage 1.2 definitely contains the corrected code.
+## Stage 2
+- Shared Firebase game state on two devices.
+- Same element order.
+- Synchronised turns, scores, streaks and completed elements.
+- Correct answer keeps the turn.
+- Wrong answer scores 0, resets the streak and passes the turn.
+- Wrong attempts briefly flash on both screens without revealing the answer.
+- End-of-game results.
+- First 20 and All 118 modes.
+- Existing Single Player and Local 2 Player remain.
+- Desktop drag-and-drop remains available.
 
-The local launcher now uses **port 8122 instead of 8000**. This prevents an old
-Python test server from accidentally serving an earlier extracted folder.
+## Phone / tablet
+Online multiplayer now supports:
 
-The browser page visibly displays:
+**Tap an element → tap its table position**
 
-**v21.2 Stage 1.2**
+The table remains at touch-friendly cell sizes and scrolls horizontally on smaller screens.
 
-next to the title, and the CSS/JavaScript URLs have version query strings to
-avoid stale browser-cache copies.
-
-## Test procedure
-
-1. Extract this ZIP to a new folder.
-2. Close any old Periodic Table / Python server command windows.
+## Test
+1. Extract this ZIP into a fresh folder.
+2. Close older test-server command windows.
 3. Double-click `START_LOCAL_TEST.bat`.
-4. Confirm the page says **v21.2 Stage 1.2**.
-5. Browser A: Online 2 player -> Create room.
-6. Browser B: open the same Stage 1.2 site and join the six-character code.
+4. Confirm the page says **v21.2 Stage 2**.
+5. Create an Online 2 Player game on the PC, preferably First 20.
+6. On the phone use `http://YOUR-PC-IP:8123`.
+7. Join the room code.
+8. Player 1 should have the first turn.
 
-For a second device on the same network, use:
+Scoring is 10 / 12 / 14 / 16 / 18, capped at 18 per consecutive correct answer.
 
-`http://YOUR-PC-IP:8122`
-
-rather than localhost.
-
-## GitHub
-
-The files may also be uploaded to the `v21.2-online` branch, but the BAT test
-does **not** use GitHub Pages. It serves the files directly from the extracted
-folder on your PC.
-
-## Firebase
-
-Realtime Database:
-`https://periodic-table-practice-default-rtdb.europe-west1.firebasedatabase.app/`
-
-This development build still assumes the Realtime Database is in Test mode.
-Security rules/authentication will be added before public multiplayer use.
+## Security
+Realtime Database is still in development/Test mode. Authentication and restrictive database rules must be added before a public multiplayer release.

@@ -1,13 +1,13 @@
 @echo off
 cd /d "%~dp0"
-title Periodic Table Practice v21.2 Stage 1.2
-echo Starting Periodic Table Practice v21.2 Stage 1.2
+title Periodic Table Practice v21.2 Stage 2
+echo Starting Periodic Table Practice v21.2 Stage 2
 echo.
-echo IMPORTANT: this build uses port 8122 so it cannot accidentally
-echo connect to an older test server on port 8000.
+echo This build uses port 8123.
 echo.
-echo Opening http://localhost:8122
+echo PC:    http://localhost:8123
+echo Phone: http://YOUR-PC-IP:8123
 echo.
-start "" "http://localhost:8122/?build=21.2-stage1.2"
-py -m http.server 8122
+start "" "http://localhost:8123/?build=21.2-stage2"
+py -m http.server 8123
 pause
