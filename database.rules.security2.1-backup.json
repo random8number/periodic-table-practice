@@ -1,0 +1,168 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "answers": {
+      ".read": false,
+      ".write": false
+    },
+    "rooms": {
+      ".read": false,
+      "$room": {
+        ".read": "auth != null",
+        ".write": "auth != null && ((!data.exists() && newData.child('host/uid').val() === auth.uid) || (data.exists() && !newData.exists() && data.child('host/uid').val() === auth.uid))",
+        "version": {
+          ".validate": "newData.val() === '21.3-security2'"
+        },
+        "status": {
+          ".write": "auth != null && (data.parent().child('host/uid').val() === auth.uid || data.parent().child('guest/uid').val() === auth.uid)",
+          ".validate": "newData.val() === 'waiting' || newData.val() === 'playing' || newData.val() === 'finished'"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "expiresAt": {
+          ".validate": "newData.isNumber() && newData.val() > now"
+        },
+        "host": {
+          ".validate": "newData.hasChildren(['uid','name']) && newData.child('uid').isString() && newData.child('uid').val() === auth.uid && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 24",
+          "uid": {
+            ".validate": "newData.isString() && newData.val() === auth.uid"
+          },
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 24"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "guest": {
+          ".write": "auth != null && ((!data.exists() && newData.child('uid').val() === auth.uid) || (data.exists() && data.child('uid').val() === auth.uid && (!newData.exists() || newData.child('uid').val() === auth.uid)))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['uid','name']) && newData.child('uid').isString() && newData.child('uid').val() === auth.uid && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 24)",
+          "uid": {
+            ".validate": "newData.isString() && newData.val() === auth.uid"
+          },
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 24"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "settings": {
+          ".validate": "newData.hasChildren(['difficulty','elementLimit'])",
+          "difficulty": {
+            ".validate": "newData.val() === 'beginner' || newData.val() === 'intermediate' || newData.val() === 'advanced' || newData.val() === 'custom'"
+          },
+          "elementLimit": {
+            ".validate": "newData.val() === 20 || newData.val() === 118"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "game": {
+          ".write": "auth != null && (data.parent().child('host/uid').val() === auth.uid || data.parent().child('guest/uid').val() === auth.uid || (!data.exists() && newData.parent().child('host/uid').val() === auth.uid))",
+          ".validate": "((\n  !data.exists()\n  && newData.hasChildren(['status','currentTurn','elementLimit','elementOrder','moveNumber','completedLog','completedCount','players'])\n  && newData.child('status').val() === 'waiting'\n  && newData.child('currentTurn').val() === 'host'\n  && newData.child('elementLimit').val() === newData.parent().child('settings/elementLimit').val()\n  && newData.child('moveNumber').val() === 0\n  && newData.child('completedLog').val() === '|'\n  && newData.child('completedCount').val() === 0\n  && newData.child('players/host/score').val() === 0\n  && newData.child('players/host/streak').val() === 0\n  && newData.child('players/host/bestStreak').val() === 0\n  && newData.child('players/host/correct').val() === 0\n  && newData.child('players/host/attempts').val() === 0\n  && newData.child('players/guest/score').val() === 0\n  && newData.child('players/guest/streak').val() === 0\n  && newData.child('players/guest/bestStreak').val() === 0\n  && newData.child('players/guest/correct').val() === 0\n  && newData.child('players/guest/attempts').val() === 0\n  && !newData.child('lastMove').exists()\n  && !newData.child('winner').exists()\n  && !newData.child('finishedAt').exists()\n) || (\n  data.exists()\n  && (\n    (\n      data.child('status').val() === 'waiting'\n      && newData.child('status').val() === 'playing'\n      && newData.parent().child('guest/uid').exists()\n    )\n    ||\n    (\n      data.child('status').val() === 'playing'\n      && newData.child('status').val() === 'waiting'\n    )\n  )\n  && newData.child('currentTurn').val() === data.child('currentTurn').val()\n  && newData.child('elementLimit').val() === data.child('elementLimit').val()\n  && newData.child('moveNumber').val() === data.child('moveNumber').val()\n  && newData.child('completedLog').val() === data.child('completedLog').val()\n  && newData.child('completedCount').val() === data.child('completedCount').val()\n  && newData.child('players/host/score').val() === data.child('players/host/score').val()\n  && newData.child('players/host/streak').val() === data.child('players/host/streak').val()\n  && newData.child('players/host/bestStreak').val() === data.child('players/host/bestStreak').val()\n  && newData.child('players/host/correct').val() === data.child('players/host/correct').val()\n  && newData.child('players/host/attempts').val() === data.child('players/host/attempts').val()\n  && newData.child('players/guest/score').val() === data.child('players/guest/score').val()\n  && newData.child('players/guest/streak').val() === data.child('players/guest/streak').val()\n  && newData.child('players/guest/bestStreak').val() === data.child('players/guest/bestStreak').val()\n  && newData.child('players/guest/correct').val() === data.child('players/guest/correct').val()\n  && newData.child('players/guest/attempts').val() === data.child('players/guest/attempts').val()\n  && newData.child('lastMove/number').val() === data.child('lastMove/number').val()\n  && newData.child('lastMove/by').val() === data.child('lastMove/by').val()\n  && newData.child('lastMove/symbol').val() === data.child('lastMove/symbol').val()\n  && newData.child('lastMove/targetNumber').val() === data.child('lastMove/targetNumber').val()\n  && newData.child('lastMove/correct').val() === data.child('lastMove/correct').val()\n  && newData.child('lastMove/points').val() === data.child('lastMove/points').val()\n  && newData.child('lastMove/streakAfter').val() === data.child('lastMove/streakAfter').val()\n  && newData.child('lastMove/at').val() === data.child('lastMove/at').val()\n  && newData.child('winner').val() === data.child('winner').val()\n  && newData.child('finishedAt').val() === data.child('finishedAt').val()\n) || (\n  data.exists()\n  && data.child('status').val() === 'playing'\n  && newData.child('elementLimit').val() === data.child('elementLimit').val()\n  && newData.child('moveNumber').val() === data.child('moveNumber').val() + 1\n  && newData.child('lastMove/number').val() === newData.child('moveNumber').val()\n  && newData.child('lastMove/by').isString()\n  && newData.child('lastMove/symbol').isString()\n  && root.child('answers').child(newData.child('lastMove/symbol').val()).isNumber()\n  && root.child('answers').child(newData.child('lastMove/symbol').val()).val() <= data.child('elementLimit').val()\n  && newData.child('lastMove/targetNumber').isNumber()\n  && newData.child('lastMove/targetNumber').val() >= 1\n  && newData.child('lastMove/targetNumber').val() <= data.child('elementLimit').val()\n  && newData.child('lastMove/correct').isBoolean()\n  && (\n    (\n      root.child('answers').child(newData.child('lastMove/symbol').val()).val() === newData.child('lastMove/targetNumber').val()\n      && newData.child('lastMove/correct').val() === true\n    )\n    ||\n    (\n      root.child('answers').child(newData.child('lastMove/symbol').val()).val() !== newData.child('lastMove/targetNumber').val()\n      && newData.child('lastMove/correct').val() === false\n    )\n  )\n  && newData.child('lastMove/points').isNumber()\n  && (\n    (\n      newData.child('lastMove/correct').val() === false\n      && newData.child('lastMove/points').val() === 0\n    )\n    ||\n    (\n      newData.child('lastMove/correct').val() === true\n      && (\n        (\n          newData.child('lastMove/by').val() === 'host'\n          && (\n            (data.child('players/host/streak').val() === 0 && newData.child('lastMove/points').val() === 10)\n            || (data.child('players/host/streak').val() === 1 && newData.child('lastMove/points').val() === 12)\n            || (data.child('players/host/streak').val() === 2 && newData.child('lastMove/points').val() === 14)\n            || (data.child('players/host/streak').val() === 3 && newData.child('lastMove/points').val() === 16)\n            || (data.child('players/host/streak').val() >= 4 && newData.child('lastMove/points').val() === 18)\n          )\n        )\n        ||\n        (\n          newData.child('lastMove/by').val() === 'guest'\n          && (\n            (data.child('players/guest/streak').val() === 0 && newData.child('lastMove/points').val() === 10)\n            || (data.child('players/guest/streak').val() === 1 && newData.child('lastMove/points').val() === 12)\n            || (data.child('players/guest/streak').val() === 2 && newData.child('lastMove/points').val() === 14)\n            || (data.child('players/guest/streak').val() === 3 && newData.child('lastMove/points').val() === 16)\n            || (data.child('players/guest/streak').val() >= 4 && newData.child('lastMove/points').val() === 18)\n          )\n        )\n      )\n    )\n  )\n  && newData.child('lastMove/streakAfter').isNumber()\n  && newData.child('lastMove/at').isNumber()\n  && newData.child('lastMove/at').val() >= now - 300000\n  && newData.child('lastMove/at').val() <= now + 60000\n  && (\n    (\n      newData.child('lastMove/correct').val() === true\n      && !data.child('completedLog').val().contains('|' + newData.child('lastMove/symbol').val() + '|')\n      && newData.child('completedLog').val() === data.child('completedLog').val() + newData.child('lastMove/symbol').val() + '|'\n      && newData.child('completedCount').val() === data.child('completedCount').val() + 1\n      && newData.child('currentTurn').val() === data.child('currentTurn').val()\n    )\n    ||\n    (\n      newData.child('lastMove/correct').val() === false\n      && newData.child('completedLog').val() === data.child('completedLog').val()\n      && newData.child('completedCount').val() === data.child('completedCount').val()\n      && (\n        (data.child('currentTurn').val() === 'host' && newData.child('currentTurn').val() === 'guest')\n        ||\n        (data.child('currentTurn').val() === 'guest' && newData.child('currentTurn').val() === 'host')\n      )\n    )\n  )\n  && ((\n      newData.child('lastMove/by').val() === 'host'\n      && data.child('currentTurn').val() === 'host'\n      && data.parent().child('host/uid').val() === auth.uid\n      && newData.child('players/host/attempts').val() === data.child('players/host/attempts').val() + 1\n      && newData.child('players/guest/score').val() === data.child('players/guest/score').val() && newData.child('players/guest/streak').val() === data.child('players/guest/streak').val() && newData.child('players/guest/bestStreak').val() === data.child('players/guest/bestStreak').val() && newData.child('players/guest/correct').val() === data.child('players/guest/correct').val() && newData.child('players/guest/attempts').val() === data.child('players/guest/attempts').val()\n      && (\n        (\n          newData.child('lastMove/correct').val() === true\n          && newData.child('players/host/streak').val() === data.child('players/host/streak').val() + 1\n          && newData.child('players/host/correct').val() === data.child('players/host/correct').val() + 1\n          && newData.child('players/host/score').val() === data.child('players/host/score').val() + newData.child('lastMove/points').val()\n          && (\n            (\n              data.child('players/host/streak').val() + 1 > data.child('players/host/bestStreak').val()\n              && newData.child('players/host/bestStreak').val() === data.child('players/host/streak').val() + 1\n            )\n            ||\n            (\n              data.child('players/host/streak').val() + 1 <= data.child('players/host/bestStreak').val()\n              && newData.child('players/host/bestStreak').val() === data.child('players/host/bestStreak').val()\n            )\n          )\n        )\n        ||\n        (\n          newData.child('lastMove/correct').val() === false\n          && newData.child('players/host/streak').val() === 0\n          && newData.child('players/host/correct').val() === data.child('players/host/correct').val()\n          && newData.child('players/host/score').val() === data.child('players/host/score').val()\n          && newData.child('players/host/bestStreak').val() === data.child('players/host/bestStreak').val()\n        )\n      )\n    ) || (\n      newData.child('lastMove/by').val() === 'guest'\n      && data.child('currentTurn').val() === 'guest'\n      && data.parent().child('guest/uid').val() === auth.uid\n      && newData.child('players/guest/attempts').val() === data.child('players/guest/attempts').val() + 1\n      && newData.child('players/host/score').val() === data.child('players/host/score').val() && newData.child('players/host/streak').val() === data.child('players/host/streak').val() && newData.child('players/host/bestStreak').val() === data.child('players/host/bestStreak').val() && newData.child('players/host/correct').val() === data.child('players/host/correct').val() && newData.child('players/host/attempts').val() === data.child('players/host/attempts').val()\n      && (\n        (\n          newData.child('lastMove/correct').val() === true\n          && newData.child('players/guest/streak').val() === data.child('players/guest/streak').val() + 1\n          && newData.child('players/guest/correct').val() === data.child('players/guest/correct').val() + 1\n          && newData.child('players/guest/score').val() === data.child('players/guest/score').val() + newData.child('lastMove/points').val()\n          && (\n            (\n              data.child('players/guest/streak').val() + 1 > data.child('players/guest/bestStreak').val()\n              && newData.child('players/guest/bestStreak').val() === data.child('players/guest/streak').val() + 1\n            )\n            ||\n            (\n              data.child('players/guest/streak').val() + 1 <= data.child('players/guest/bestStreak').val()\n              && newData.child('players/guest/bestStreak').val() === data.child('players/guest/bestStreak').val()\n            )\n          )\n        )\n        ||\n        (\n          newData.child('lastMove/correct').val() === false\n          && newData.child('players/guest/streak').val() === 0\n          && newData.child('players/guest/correct').val() === data.child('players/guest/correct').val()\n          && newData.child('players/guest/score').val() === data.child('players/guest/score').val()\n          && newData.child('players/guest/bestStreak').val() === data.child('players/guest/bestStreak').val()\n        )\n      )\n    ))\n  && (\n    (\n      newData.child('lastMove/by').val() === 'host'\n      && newData.child('lastMove/streakAfter').val() === newData.child('players/host/streak').val()\n    )\n    ||\n    (\n      newData.child('lastMove/by').val() === 'guest'\n      && newData.child('lastMove/streakAfter').val() === newData.child('players/guest/streak').val()\n    )\n  )\n  && (\n    (\n      newData.child('completedCount').val() < newData.child('elementLimit').val()\n      && newData.child('status').val() === 'playing'\n      && !newData.child('winner').exists()\n      && !newData.child('finishedAt').exists()\n    )\n    ||\n    (\n      newData.child('completedCount').val() === newData.child('elementLimit').val()\n      && newData.child('lastMove/correct').val() === true\n      && newData.child('status').val() === 'finished'\n      && newData.child('finishedAt').isNumber()\n      && newData.child('finishedAt').val() >= now - 300000\n      && newData.child('finishedAt').val() <= now + 60000\n      && (\n        (\n          newData.child('players/host/score').val() === newData.child('players/guest/score').val()\n          && newData.child('winner').val() === 'draw'\n        )\n        ||\n        (\n          newData.child('players/host/score').val() > newData.child('players/guest/score').val()\n          && newData.child('winner').val() === 'host'\n        )\n        ||\n        (\n          newData.child('players/guest/score').val() > newData.child('players/host/score').val()\n          && newData.child('winner').val() === 'guest'\n        )\n      )\n    )\n  )\n))",
+          "status": {
+            ".validate": "newData.val() === 'waiting' || newData.val() === 'playing' || newData.val() === 'finished'"
+          },
+          "currentTurn": {
+            ".validate": "newData.val() === 'host' || newData.val() === 'guest'"
+          },
+          "elementLimit": {
+            ".validate": "newData.val() === 20 || newData.val() === 118"
+          },
+          "moveNumber": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "completedLog": {
+            ".validate": "newData.isString() && newData.val().beginsWith('|') && newData.val().endsWith('|') && newData.val().length <= 500"
+          },
+          "completedCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= newData.parent().child('elementLimit').val()"
+          },
+          "players": {
+            "$role": {
+              "score": {
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "streak": {
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "bestStreak": {
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "correct": {
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "attempts": {
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "$other": {
+                ".validate": false
+              },
+              ".validate": "$role === 'host' || $role === 'guest'"
+            }
+          },
+          "lastMove": {
+            "number": {
+              ".validate": "newData.isNumber() && newData.val() >= 1"
+            },
+            "by": {
+              ".validate": "newData.val() === 'host' || newData.val() === 'guest'"
+            },
+            "symbol": {
+              ".validate": "newData.isString() && root.child('answers').child(newData.val()).isNumber()"
+            },
+            "targetNumber": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 118"
+            },
+            "correct": {
+              ".validate": "newData.isBoolean()"
+            },
+            "points": {
+              ".validate": "newData.isNumber() && (newData.val() === 0 || newData.val() === 10 || newData.val() === 12 || newData.val() === 14 || newData.val() === 16 || newData.val() === 18)"
+            },
+            "streakAfter": {
+              ".validate": "newData.isNumber() && newData.val() >= 0"
+            },
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "winner": {
+            ".validate": "newData.val() === 'host' || newData.val() === 'guest' || newData.val() === 'draw'"
+          },
+          "finishedAt": {
+            ".validate": "newData.isNumber()"
+          }
+        },
+        "presence": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && (data.parent().parent().child('host/uid').val() === auth.uid || data.parent().parent().child('guest/uid').val() === auth.uid)",
+            ".validate": "!newData.exists() || (newData.hasChildren(['role','online','lastSeen']) && (newData.child('role').val() === 'host' || newData.child('role').val() === 'guest') && newData.child('online').isBoolean() && newData.child('lastSeen').isNumber())",
+            "role": {
+              ".validate": "newData.val() === 'host' || newData.val() === 'guest'"
+            },
+            "online": {
+              ".validate": "newData.isBoolean()"
+            },
+            "lastSeen": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

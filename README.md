@@ -1,40 +1,41 @@
-# Periodic Table Practice v21.2 — Stage 2
+# Periodic Table Practice v21.4 — Online Multiplayer Polish
 
-Stage 2 adds the first complete two-device online game.
+Built from the known-good v21.3 Security 3.1 checkpoint.
 
-## Upload
-Upload these files to the **`v21.2-online`** branch only.
+## New in v21.4
 
-## Stage 2
-- Shared Firebase game state on two devices.
-- Same element order.
-- Synchronised turns, scores, streaks and completed elements.
-- Correct answer keeps the turn.
-- Wrong answer scores 0, resets the streak and passes the turn.
-- Wrong attempts briefly flash on both screens without revealing the answer.
-- End-of-game results.
-- First 20 and All 118 modes.
-- Existing Single Player and Local 2 Player remain.
-- Desktop drag-and-drop remains available.
+### Invite links
+- Copy room code.
+- Copy invite link.
+- `?room=ABC123` links open the multiplayer dialog automatically.
+- Room code is pre-filled and the Join panel is highlighted.
+- Invite query is removed after successful join/create so normal refresh uses the authenticated saved session.
 
-## Phone / tablet
-Online multiplayer now supports:
+### Rematch
+- Host can choose Play again after a completed online game.
+- Same room and same two players.
+- Host can choose difficulty and First 20 / All 118 again.
+- Scores, streaks, attempts and completed elements reset.
+- Fresh shuffled order.
+- Host starts the new game.
+- Guest automatically follows into the new game.
 
-**Tap an element → tap its table position**
+### Lobby/status polish
+- Removed the old “Connection Test” wording.
+- Online mode no longer says “test”.
+- Current game settings are shown in the room panel.
+- Room expiry is visible again.
+- Security 3.1 Online/Reconnecting/Offline presence remains.
 
-The table remains at touch-friendly cell sizes and scrolls horizontally on smaller screens.
+## Firebase
 
-## Test
-1. Extract this ZIP into a fresh folder.
-2. Close older test-server command windows.
-3. Double-click `START_LOCAL_TEST.bat`.
-4. Confirm the page says **v21.2 Stage 2**.
-5. Create an Online 2 Player game on the PC, preferably First 20.
-6. On the phone use `http://YOUR-PC-IP:8123`.
-7. Join the room code.
-8. Player 1 should have the first turn.
+Publish `database.rules.v21.4.json`.
 
-Scoring is 10 / 12 / 14 / 16 / 18, capped at 18 per consecutive correct answer.
+The `/answers` node is unchanged.
 
-## Security
-Realtime Database is still in development/Test mode. Authentication and restrictive database rules must be added before a public multiplayer release.
+The v21.4 rules continue accepting old `21.3-security3` rooms, so the Security 3.1 web build remains usable as a rollback.
+
+## Local test
+Port 8129, IPv4-bound launcher.
+
+See `V21_4_SETUP.md`.

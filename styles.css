@@ -1382,3 +1382,160 @@ body.online-room-mode.online-waiting .element-list {
     max-height: 300px;
   }
 }
+
+
+/* v21.3 Security 1 */
+.auth-status {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+
+/* v21.3 Security 2 */
+.server-validation-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+
+/* v21.3 Security 3 */
+.online-player-heading {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.online-player-heading .online-player-name {
+  margin-bottom: 0;
+}
+
+.presence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: bold;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.presence-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.presence-badge.online {
+  color: #166534;
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+
+.presence-badge.offline {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.presence-badge.waiting {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+body.online-room-mode.online-paused .element-list,
+body.online-room-mode.online-paused .slot:not(.multiplayer-locked) {
+  pointer-events: none;
+}
+
+body.online-room-mode.online-paused .element-list {
+  opacity: 0.45;
+}
+
+.online-connection-state.paused,
+.online-connection-state.reconnecting {
+  color: #92400e;
+}
+
+@media (max-width: 560px) {
+  .presence-badge {
+    padding: 1px 5px;
+    font-size: 9px;
+  }
+}
+
+
+/* v21.3 Security 3.1 — 30-second mobile reconnect grace */
+.presence-badge.reconnecting {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+body.online-room-mode.online-local-reconnecting .element-list,
+body.online-room-mode.online-local-reconnecting .slot:not(.multiplayer-locked) {
+  pointer-events: none;
+}
+
+body.online-room-mode.online-local-reconnecting .element-list {
+  opacity: 0.6;
+}
+
+
+/* ============================================================
+   v21.4 Online Multiplayer Polish
+   ============================================================ */
+
+.online-room-code-line {
+  flex-wrap: wrap;
+}
+
+.online-room-code-line #copyInviteLinkButton {
+  white-space: nowrap;
+}
+
+.online-game-settings {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.online-invite-notice {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #eff6ff;
+  font-weight: 700;
+}
+
+.online-setup-card.invite-highlight {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.online-rematch-status {
+  min-height: 20px;
+  text-align: center;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+#onlineRematchButton:disabled {
+  opacity: 0.55;
+}
+
+@media (max-width: 700px) {
+  .online-room-code-line {
+    justify-content: center;
+  }
+
+  .online-room-code-line #copyInviteLinkButton {
+    flex-basis: auto;
+  }
+}

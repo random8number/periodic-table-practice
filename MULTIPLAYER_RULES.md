@@ -73,3 +73,25 @@ The gameplay rules above remain the target for the later online gameplay stage.
 ## v21.2 Stage 2 implementation
 
 Stage 2 implements the agreed multiplayer rules across two browsers/devices using Firebase Realtime Database. Touch devices use **tap an element → tap its table position**; desktop drag-and-drop remains available.
+
+
+## v21.3 Security 1
+
+Online players now use Firebase Anonymous Authentication. Realtime Database rules restrict room writes to authenticated room members, and refresh/reconnect restores the same authenticated room session.
+
+
+## v21.3 Security 2
+
+Firebase now validates the proposed move against a trusted symbol-to-atomic-number map and enforces the permitted score, streak, turn and completion-log transition. The browser proposes the move; the database rules independently accept or reject the resulting state.
+
+
+## v21.3 Security 3
+
+Connection loss pauses the game rather than causing a forfeit. Player presence is shown as Online/Offline and the same authenticated browser can reconnect to its room. Active and completed rooms have protected expiry data and genuinely expired records can be cleaned up opportunistically by later authenticated app launches.
+
+
+## v21.4 Online Multiplayer Polish
+
+Invite URLs carry only the six-character room code (`?room=ABC123`); player identity still comes from Firebase Anonymous Authentication.
+
+After a game finishes, only the authenticated host may reset the game for a rematch. A rematch may change difficulty and element limit, clears all scores/streaks/attempts/completed elements, creates a fresh element order, and retains the same room/players.

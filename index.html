@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Periodic Table Practice v21.2-stage2</title>
-<link rel="stylesheet" href="styles.css?v=21.2-stage2">
+<title>Periodic Table Practice v21.4-online-polish</title>
+<link rel="stylesheet" href="styles.css?v=21.4-online-polish">
 </head>
 <body>
 <div class="app">
   <div class="top-panel">
-    <div class="title-line"><h1>Periodic Table Practice</h1><span class="dev-version">v21.2 Stage 2</span></div>
+    <div class="title-line"><h1>Periodic Table Practice</h1><span class="dev-version">v21.4 Online Multiplayer</span></div>
 
     <div class="toolbar">
       <div class="top-actions">
@@ -29,7 +29,7 @@
             <select id="playModeSelect" onchange="setPlayMode(this.value)">
               <option value="single">Single player</option>
               <option value="local">Local 2 player</option>
-              <option value="online">Online 2 player — test</option>
+              <option value="online">Online 2 player</option>
             </select>
           </div>
 
@@ -143,7 +143,10 @@
 
     <div id="onlineRoomStatus" class="online-room-status" hidden>
       <div class="online-player-card" id="onlinePlayerCardHost">
-        <div class="online-player-name" id="onlineHostName">Player 1</div>
+        <div class="online-player-heading">
+          <div class="online-player-name" id="onlineHostName">Player 1</div>
+          <span class="presence-badge waiting" id="onlineHostPresence">Waiting</span>
+        </div>
         <div class="online-player-stats">
           <span id="onlineHostScore">0 pts</span>
           <span id="onlineHostStreak">Streak 0</span>
@@ -154,7 +157,8 @@
         <div class="online-room-code-line">
           <span class="online-room-label">Room</span>
           <strong id="onlineRoomCode">------</strong>
-          <button id="copyRoomCodeButton" type="button">Copy</button>
+          <button id="copyRoomCodeButton" type="button">Copy code</button>
+          <button id="copyInviteLinkButton" type="button">Copy invite link</button>
         </div>
         <div class="online-turn-label" id="onlineTurnLabel">Waiting for Player 2…</div>
         <div class="online-turn-feedback" id="onlineTurnFeedback">Create or join a room.</div>
@@ -162,7 +166,10 @@
       </div>
 
       <div class="online-player-card" id="onlinePlayerCardGuest">
-        <div class="online-player-name" id="onlineGuestName">Waiting for Player 2…</div>
+        <div class="online-player-heading">
+          <div class="online-player-name" id="onlineGuestName">Waiting for Player 2…</div>
+          <span class="presence-badge waiting" id="onlineGuestPresence">Waiting</span>
+        </div>
         <div class="online-player-stats">
           <span id="onlineGuestScore">0 pts</span>
           <span id="onlineGuestStreak">Streak 0</span>
@@ -171,7 +178,9 @@
 
       <div class="online-room-meta">
         <div id="onlineConnectionState" class="online-connection-state">Connecting…</div>
-        <div class="online-stage-note">Live game • tap-to-place supported</div>
+        <div id="onlineGameSettings" class="online-game-settings">Game settings: —</div>
+        <div id="onlineRoomExpiry" class="online-stage-note">Room expiry: —</div>
+        <div class="online-stage-note">30s reconnect grace • validated scoring • live presence</div>
       </div>
 
       <button id="leaveOnlineRoomButton" type="button">Leave room</button>
@@ -250,14 +259,15 @@
 
   <dialog id="onlineMultiplayerDialog" class="game-dialog online-dialog">
     <div class="dialog-content">
-      <h2>Online 2 Player — Connection Test</h2>
-      <p>Create or join a two-player online game. On a phone/tablet, tap an element and then tap its position on the table.</p>
+      <h2>Online 2 Player</h2>
+      <p>Create a room and invite another player, or join using a room code/invite link. On a phone/tablet, tap an element and then tap its position on the table.</p>
 
       <div id="firebaseLoadStatus" class="firebase-load-status">Connecting to Firebase…</div>
+      <div id="onlineInviteNotice" class="online-invite-notice" hidden></div>
 
       <div class="online-setup-grid">
         <section class="online-setup-card">
-          <h3>Create a room</h3>
+          <h3>Host a game</h3>
           <label>
             <span>Your name</span>
             <input id="onlineHostNameInput" type="text" maxlength="24" value="Player 1">
@@ -274,15 +284,15 @@
           <label>
             <span>Elements</span>
             <select id="onlineElementSetSelect">
-              <option value="20">First 20 — quick test game</option>
+              <option value="20">First 20 — quick game</option>
               <option value="118">All 118</option>
             </select>
           </label>
           <button id="createOnlineRoomButton" type="button" class="primary-action">Create room</button>
         </section>
 
-        <section class="online-setup-card">
-          <h3>Join a room</h3>
+        <section class="online-setup-card" id="onlineJoinCard">
+          <h3>Join a game</h3>
           <label>
             <span>Your name</span>
             <input id="onlineGuestNameInput" type="text" maxlength="24" value="Player 2">
@@ -325,9 +335,44 @@
           <div id="onlineResultStreakGuest">Best streak: 0</div>
         </div>
       </div>
+      <div id="onlineRematchStatus" class="online-rematch-status"></div>
       <div class="dialog-actions">
         <button id="closeOnlineResultsButton" type="button">Close results</button>
-        <button id="leaveAfterOnlineGameButton" type="button" class="primary-action">Leave room</button>
+        <button id="onlineRematchButton" type="button" class="primary-action">Play again</button>
+        <button id="leaveAfterOnlineGameButton" type="button">Leave room</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="onlineRematchDialog" class="game-dialog">
+    <div class="dialog-content">
+      <h2>Play again</h2>
+      <p>Start a fresh game with the same two players and the same room code.</p>
+
+      <div class="dialog-grid">
+        <label>
+          <span>Difficulty</span>
+          <select id="onlineRematchDifficultySelect">
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label>
+          <span>Elements</span>
+          <select id="onlineRematchElementSetSelect">
+            <option value="20">First 20 — quick game</option>
+            <option value="118">All 118</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="onlineRematchSetupMessage" class="online-setup-message"></div>
+
+      <div class="dialog-actions">
+        <button id="cancelOnlineRematchButton" type="button">Cancel</button>
+        <button id="startOnlineRematchButton" type="button" class="primary-action">Start rematch</button>
       </div>
     </div>
   </dialog>
@@ -361,7 +406,7 @@
 
 </div>
 
-<script src="firebase-config.js?v=21.2-stage2"></script>
-<script src="app.js?v=21.2-stage2"></script>
+<script src="firebase-config.js?v=21.4-online-polish"></script>
+<script src="app.js?v=21.4-online-polish"></script>
 </body>
 </html>

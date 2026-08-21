@@ -65,12 +65,26 @@ let localGame = null;
 let firebaseOnline = {
   ready: false,
   error: null,
-  api: null
+  api: null,
+  auth: null,
+  user: null
 };
+
+const ONLINE_SESSION_KEY = "periodicTableOnlineSession-v21.4-online-polish";
 
 let onlineRoom = null;
 let onlineRoomUnsubscribe = null;
+let onlineConnectionUnsubscribe = null;
 let onlineFeedbackTimer = null;
+let onlinePresenceHeartbeatTimer = null;
+let onlineExpiryRefreshTimer = null;
+let onlineGraceRefreshTimer = null;
+
+const ONLINE_DISCONNECT_GRACE_MS = 30 * 1000;
+const ONLINE_ROOM_TTL_MS = 24 * 60 * 60 * 1000;
+const ONLINE_FINISHED_TTL_MS = 60 * 60 * 1000;
+const ONLINE_PRESENCE_HEARTBEAT_MS = 30 * 1000;
+const ONLINE_EXPIRY_TOUCH_MS = 5 * 60 * 1000;
 
 const main = document.getElementById("periodic-table");
 const lower = document.getElementById("lower-table");
@@ -132,13 +146,23 @@ function getOnlineElementLimit() {
     : 118;
 }
 
-function getOnlineCompleted() {
+function getOnlineCompletedSymbols() {
   const game = getOnlineGame();
-  return game && game.completed ? game.completed : {};
+  const log = game && typeof game.completedLog === "string"
+    ? game.completedLog
+    : "|";
+
+  return log
+    .split("|")
+    .filter(Boolean);
 }
 
-function getOnlineCompletedSymbols() {
-  return Object.keys(getOnlineCompleted());
+function getOnlineCompleted() {
+  const completed = {};
+  getOnlineCompletedSymbols().forEach(symbol => {
+    completed[symbol] = true;
+  });
+  return completed;
 }
 
 function onlineGameIsPlaying() {
@@ -148,7 +172,13 @@ function onlineGameIsPlaying() {
 
 function onlineMyTurn() {
   const game = getOnlineGame();
-  return Boolean(onlineGameIsPlaying() && onlineRoom && game.currentTurn === onlineRoom.role);
+  return Boolean(
+    onlineGameIsPlaying() &&
+    onlineRoom &&
+    onlineRoom.firebaseConnected !== false &&
+    onlineBothPlayersAvailable() &&
+    game.currentTurn === onlineRoom.role
+  );
 }
 
 function onlineRoleName(role, data = getOnlineRoomData()) {
@@ -196,6 +226,28 @@ function setDefaultOnlineTurnFeedback() {
     return;
   }
 
+  if (onlineRoom && onlineRoom.firebaseConnected === false) {
+    setOnlineTurnFeedback("Connection lost — reconnecting…", "bad");
+    return;
+  }
+
+  const reconnectingRole = onlineReconnectingRole(data);
+  if (reconnectingRole) {
+    const seconds = reconnectGraceSeconds(reconnectingRole, data);
+    setOnlineTurnFeedback(
+      `${onlineRoleName(reconnectingRole, data)} is reconnecting… ${seconds}s grace.`
+    );
+    return;
+  }
+
+  const disconnectedRole = onlineDisconnectedRole(data);
+  if (disconnectedRole) {
+    setOnlineTurnFeedback(
+      `Game paused — waiting for ${onlineRoleName(disconnectedRole, data)} to reconnect.`
+    );
+    return;
+  }
+
   if (game && game.status === "finished") {
     setOnlineTurnFeedback("Game complete.");
     return;
@@ -222,7 +274,10 @@ function updateFirebaseLoadStatus() {
   el.classList.remove("ready", "error");
 
   if (firebaseOnline.ready) {
-    el.textContent = "Firebase connected. Ready to create or join a room.";
+    const uid = firebaseOnline.user && firebaseOnline.user.uid
+      ? firebaseOnline.user.uid.slice(0, 8)
+      : "unknown";
+    el.textContent = `Firebase connected securely (anonymous session ${uid}…). Ready to create or join a room.`;
     el.classList.add("ready");
   } else if (firebaseOnline.error) {
     el.textContent = `Firebase could not load: ${firebaseOnline.error}`;
@@ -260,10 +315,25 @@ function updateOnlineInteractionClasses() {
   const game = getOnlineGame();
   const waiting = !data || !data.guest || !game || game.status === "waiting";
   const finished = Boolean(game && game.status === "finished");
-  const notMyTurn = !waiting && !finished && !onlineMyTurn();
+  const localDisconnected = Boolean(
+    isOnlineRoomActive() &&
+    onlineRoom.firebaseConnected === false
+  );
+
+  const remoteExpiredDisconnect = Boolean(
+    isOnlineRoomActive() &&
+    data &&
+    data.guest &&
+    onlineDisconnectedRole(data)
+  );
+
+  const paused = localDisconnected || remoteExpiredDisconnect;
+  const notMyTurn = !waiting && !finished && !paused && !onlineMyTurn();
 
   document.body.classList.toggle("online-waiting", Boolean(isOnlineRoomActive() && waiting));
   document.body.classList.toggle("online-finished", Boolean(isOnlineRoomActive() && finished));
+  document.body.classList.toggle("online-paused", remoteExpiredDisconnect);
+  document.body.classList.toggle("online-local-reconnecting", localDisconnected);
   document.body.classList.toggle("online-not-my-turn", Boolean(isOnlineRoomActive() && notMyTurn));
   document.body.classList.toggle(
     "online-element-selected",
@@ -291,6 +361,46 @@ function renderOnlineSelectionState() {
     : `Selected: ${onlineRoom.selectedSymbol}`;
 }
 
+function renderPresenceBadge(role, roomData) {
+  const badge = document.getElementById(
+    role === "host" ? "onlineHostPresence" : "onlineGuestPresence"
+  );
+  if (!badge) return;
+
+  badge.classList.remove("online", "offline", "waiting", "reconnecting");
+
+  const player = role === "host" ? roomData.host : roomData.guest;
+
+  if (!player) {
+    badge.textContent = "Waiting";
+    badge.classList.add("waiting");
+    return;
+  }
+
+  const connectionState = onlineRoleConnectionState(role, roomData);
+
+  if (connectionState === "online") {
+    badge.textContent = "Online";
+    badge.classList.add("online");
+  } else if (connectionState === "reconnecting") {
+    badge.textContent = "Reconnecting";
+    badge.classList.add("reconnecting");
+  } else {
+    badge.textContent = "Offline";
+    badge.classList.add("offline");
+  }
+}
+
+function formatRoomExpiry(expiresAt) {
+  const remaining = Number(expiresAt || 0) - Date.now();
+  if (remaining <= 0) return "expired";
+
+  const hours = Math.floor(remaining / 3600000);
+  const minutes = Math.max(0, Math.floor((remaining % 3600000) / 60000));
+
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
 function renderOnlineRoomStatus(roomData = null) {
   const panel = document.getElementById("onlineRoomStatus");
   if (!panel) return;
@@ -314,6 +424,27 @@ function renderOnlineRoomStatus(roomData = null) {
   document.getElementById("onlineGuestName").textContent =
     data.guest && data.guest.name ? data.guest.name : "Waiting for Player 2…";
 
+  renderPresenceBadge("host", data);
+  renderPresenceBadge("guest", data);
+
+  const expiryEl = document.getElementById("onlineRoomExpiry");
+  if (expiryEl) {
+    expiryEl.textContent = `Room expiry: ${formatRoomExpiry(data.expiresAt)}`;
+  }
+
+  const settingsEl = document.getElementById("onlineGameSettings");
+  if (settingsEl) {
+    const difficultyName = data.settings && data.settings.difficulty
+      ? data.settings.difficulty.charAt(0).toUpperCase() + data.settings.difficulty.slice(1)
+      : "—";
+    const elementLimit = data.settings && Number(data.settings.elementLimit)
+      ? Number(data.settings.elementLimit)
+      : 118;
+
+    settingsEl.textContent =
+      `Game settings: ${difficultyName} • ${elementLimit === 118 ? "All 118" : `First ${elementLimit}`}`;
+  }
+
   document.getElementById("onlineHostScore").textContent = `${hostStats.score || 0} pts`;
   document.getElementById("onlineHostStreak").textContent = `Streak ${hostStats.streak || 0}`;
   document.getElementById("onlineGuestScore").textContent = `${guestStats.score || 0} pts`;
@@ -334,33 +465,166 @@ function renderOnlineRoomStatus(roomData = null) {
 
   const state = document.getElementById("onlineConnectionState");
   state.classList.remove("connected", "waiting", "error");
-  if (data.guest) {
+  state.classList.remove("paused", "reconnecting");
+
+  if (onlineRoom && onlineRoom.firebaseConnected === false) {
+    state.textContent = "Connection lost — reconnecting";
+    state.classList.add("reconnecting");
+  } else if (!data.guest) {
+    state.textContent = "Waiting for Player 2 to join";
+    state.classList.add("waiting");
+  } else if (onlineReconnectingRole(data)) {
+    const role = onlineReconnectingRole(data);
+    const seconds = reconnectGraceSeconds(role, data);
+    state.textContent =
+      `${onlineRoleName(role, data)} reconnecting — ${seconds}s before pause`;
+    state.classList.add("reconnecting");
+  } else if (onlineDisconnectedRole(data)) {
+    const role = onlineDisconnectedRole(data);
+    state.textContent = `Paused — ${onlineRoleName(role, data)} is offline`;
+    state.classList.add("paused");
+  } else {
     state.textContent = game.status === "finished"
       ? "Connected — game finished"
       : "Connected — both players online";
     state.classList.add("connected");
-  } else {
-    state.textContent = "Waiting for Player 2 to join";
-    state.classList.add("waiting");
   }
 
+  updateGraceRefreshTimer(data);
   renderOnlineSelectionState();
   updateOnlineInteractionClasses();
   requestAnimationFrame(fitLayoutToViewport);
+}
+
+
+function getInviteRoomCodeFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    const code = normaliseRoomCode(url.searchParams.get("room") || "");
+    return code.length === 6 ? code : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function clearInviteRoomFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("room")) return;
+
+    url.searchParams.delete("room");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  } catch (error) {
+    console.debug("Could not clean invite URL:", error);
+  }
+}
+
+function buildOnlineInviteUrl(code) {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("room", normaliseRoomCode(code));
+  return url.toString();
+}
+
+function isLoopbackInviteUrl(urlString) {
+  try {
+    const host = new URL(urlString).hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  } catch (error) {
+    return false;
+  }
+}
+
+async function copyOnlineInviteLink() {
+  if (!onlineRoom) return;
+
+  const link = buildOnlineInviteUrl(onlineRoom.code);
+
+  if (isLoopbackInviteUrl(link)) {
+    window.prompt(
+      "This local test page is using localhost. Replace localhost with this PC's LAN IPv4 address before opening the link on another device:",
+      link
+    );
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(link);
+
+    const button = document.getElementById("copyInviteLinkButton");
+    const oldText = button.textContent;
+    button.textContent = "Invite copied";
+
+    window.setTimeout(() => {
+      button.textContent = oldText;
+    }, 1200);
+  } catch (error) {
+    window.prompt("Copy this invite link:", link);
+  }
+}
+
+function showInviteInOnlineDialog(code) {
+  const roomCode = normaliseRoomCode(code);
+  const notice = document.getElementById("onlineInviteNotice");
+  const joinCard = document.getElementById("onlineJoinCard");
+  const input = document.getElementById("onlineRoomCodeInput");
+
+  if (roomCode.length === 6) {
+    input.value = roomCode;
+    notice.textContent = `You've been invited to room ${roomCode}. Enter your name and press Join room.`;
+    notice.hidden = false;
+    joinCard.classList.add("invite-highlight");
+    document.getElementById("playModeSelect").value = "online";
+  } else {
+    notice.textContent = "";
+    notice.hidden = true;
+    joinCard.classList.remove("invite-highlight");
+  }
+}
+
+function maybeOpenOnlineInvite() {
+  if (isOnlineRoomActive()) return false;
+
+  const code = getInviteRoomCodeFromUrl();
+  if (!code) return false;
+
+  openOnlineDialog(code);
+  return true;
 }
 
 async function initialiseFirebaseOnline() {
   updateFirebaseLoadStatus();
 
   try {
-    if (!window.PERIODIC_TABLE_FIREBASE_CONFIG) throw new Error("firebase-config.js is missing");
+    if (!window.PERIODIC_TABLE_FIREBASE_CONFIG) {
+      throw new Error("firebase-config.js is missing");
+    }
 
     const version = "12.17.1";
     const appModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-app.js`);
+    const authModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-auth.js`);
     const dbModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-database.js`);
+
     const app = appModule.initializeApp(window.PERIODIC_TABLE_FIREBASE_CONFIG);
+    const auth = authModule.getAuth(app);
+
+    if (typeof auth.authStateReady === "function") {
+      await auth.authStateReady();
+    }
+
+    if (!auth.currentUser) {
+      await authModule.signInAnonymously(auth);
+    }
+
+    if (!auth.currentUser) {
+      throw new Error("Anonymous Firebase sign-in did not complete.");
+    }
+
     const database = dbModule.getDatabase(app);
 
+    firebaseOnline.auth = auth;
+    firebaseOnline.user = auth.currentUser;
     firebaseOnline.api = {
       database,
       ref: dbModule.ref,
@@ -371,11 +635,22 @@ async function initialiseFirebaseOnline() {
       runTransaction: dbModule.runTransaction,
       onValue: dbModule.onValue,
       onDisconnect: dbModule.onDisconnect,
-      serverTimestamp: dbModule.serverTimestamp
+      serverTimestamp: dbModule.serverTimestamp,
+      query: dbModule.query,
+      orderByChild: dbModule.orderByChild,
+      endAt: dbModule.endAt,
+      limitToFirst: dbModule.limitToFirst
     };
 
     firebaseOnline.ready = true;
     firebaseOnline.error = null;
+
+    await cleanupExpiredRooms();
+    const restored = await restoreOnlineSession();
+
+    if (!restored) {
+      maybeOpenOnlineInvite();
+    }
   } catch (error) {
     firebaseOnline.ready = false;
     firebaseOnline.error = error && error.message ? error.message : String(error);
@@ -383,6 +658,397 @@ async function initialiseFirebaseOnline() {
   }
 
   updateFirebaseLoadStatus();
+}
+
+function saveOnlineSession() {
+  if (!onlineRoom || !onlineRoom.code || !onlineRoom.role) return;
+
+  localStorage.setItem(
+    ONLINE_SESSION_KEY,
+    JSON.stringify({
+      code: onlineRoom.code,
+      role: onlineRoom.role
+    })
+  );
+}
+
+function clearOnlineSession() {
+  localStorage.removeItem(ONLINE_SESSION_KEY);
+}
+
+function loadOnlineSession() {
+  try {
+    const raw = localStorage.getItem(ONLINE_SESSION_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.code || !["host", "guest"].includes(parsed.role)) {
+      clearOnlineSession();
+      return null;
+    }
+
+    return {
+      code: normaliseRoomCode(parsed.code),
+      role: parsed.role
+    };
+  } catch (error) {
+    clearOnlineSession();
+    return null;
+  }
+}
+
+function onlinePresenceForRole(role, roomData = getOnlineRoomData()) {
+  if (!roomData) return null;
+
+  const player = role === "host" ? roomData.host : roomData.guest;
+  if (!player || !player.uid) return null;
+
+  return roomData.presence && roomData.presence[player.uid]
+    ? roomData.presence[player.uid]
+    : null;
+}
+
+function onlineRoleConnectionState(role, roomData = getOnlineRoomData()) {
+  if (!roomData) return "offline";
+
+  const player = role === "host" ? roomData.host : roomData.guest;
+  if (!player || !player.uid) return "waiting";
+
+  const presence = onlinePresenceForRole(role, roomData);
+
+  if (presence && presence.online === true) {
+    return "online";
+  }
+
+  const lastSeen = Number(presence && presence.lastSeen ? presence.lastSeen : 0);
+
+  if (lastSeen > 0 && Date.now() - lastSeen < ONLINE_DISCONNECT_GRACE_MS) {
+    return "reconnecting";
+  }
+
+  return "offline";
+}
+
+function onlineRoleIsConnected(role, roomData = getOnlineRoomData()) {
+  return onlineRoleConnectionState(role, roomData) === "online";
+}
+
+function onlineRoleIsAvailable(role, roomData = getOnlineRoomData()) {
+  const state = onlineRoleConnectionState(role, roomData);
+  return state === "online" || state === "reconnecting";
+}
+
+function onlineBothPlayersAvailable(roomData = getOnlineRoomData()) {
+  return Boolean(
+    roomData &&
+    roomData.host &&
+    roomData.guest &&
+    onlineRoleIsAvailable("host", roomData) &&
+    onlineRoleIsAvailable("guest", roomData)
+  );
+}
+
+function onlineBothPlayersConnected(roomData = getOnlineRoomData()) {
+  return Boolean(
+    roomData &&
+    roomData.host &&
+    roomData.guest &&
+    onlineRoleIsConnected("host", roomData) &&
+    onlineRoleIsConnected("guest", roomData)
+  );
+}
+
+function onlineReconnectingRole(roomData = getOnlineRoomData()) {
+  if (!roomData || !roomData.guest) return null;
+
+  if (onlineRoleConnectionState("host", roomData) === "reconnecting") return "host";
+  if (onlineRoleConnectionState("guest", roomData) === "reconnecting") return "guest";
+
+  return null;
+}
+
+function onlineDisconnectedRole(roomData = getOnlineRoomData()) {
+  if (!roomData || !roomData.guest) return null;
+
+  if (onlineRoleConnectionState("host", roomData) === "offline") return "host";
+  if (onlineRoleConnectionState("guest", roomData) === "offline") return "guest";
+
+  return null;
+}
+
+function reconnectGraceSeconds(role, roomData = getOnlineRoomData()) {
+  const presence = onlinePresenceForRole(role, roomData);
+  const lastSeen = Number(presence && presence.lastSeen ? presence.lastSeen : 0);
+
+  if (!lastSeen) return 0;
+
+  return Math.max(
+    0,
+    Math.ceil((ONLINE_DISCONNECT_GRACE_MS - (Date.now() - lastSeen)) / 1000)
+  );
+}
+
+function stopGraceRefreshTimer() {
+  if (onlineGraceRefreshTimer) {
+    clearInterval(onlineGraceRefreshTimer);
+    onlineGraceRefreshTimer = null;
+  }
+}
+
+function updateGraceRefreshTimer(roomData = getOnlineRoomData()) {
+  if (!onlineReconnectingRole(roomData)) {
+    stopGraceRefreshTimer();
+    return;
+  }
+
+  if (onlineGraceRefreshTimer) return;
+
+  onlineGraceRefreshTimer = setInterval(() => {
+    if (!isOnlineRoomActive()) {
+      stopGraceRefreshTimer();
+      return;
+    }
+
+    updateOnlineInteractionClasses();
+    renderOnlineRoomStatus(getOnlineRoomData());
+    setDefaultOnlineTurnFeedback();
+  }, 1000);
+}
+
+function stopPresenceTimers() {
+  stopGraceRefreshTimer();
+
+  if (onlinePresenceHeartbeatTimer) {
+    clearInterval(onlinePresenceHeartbeatTimer);
+    onlinePresenceHeartbeatTimer = null;
+  }
+
+  if (onlineExpiryRefreshTimer) {
+    clearInterval(onlineExpiryRefreshTimer);
+    onlineExpiryRefreshTimer = null;
+  }
+}
+
+async function writeOnlinePresence(online = true) {
+  if (!isOnlineRoomActive() || !firebaseOnline.ready || !firebaseOnline.user) return;
+
+  const api = firebaseOnline.api;
+  const uid = firebaseOnline.user.uid;
+
+  await api.set(
+    api.ref(api.database, `rooms/${onlineRoom.code}/presence/${uid}`),
+    {
+      role: onlineRoom.role,
+      online,
+      lastSeen: api.serverTimestamp()
+    }
+  );
+}
+
+async function touchOnlineRoom(ttlMs = ONLINE_ROOM_TTL_MS) {
+  if (!isOnlineRoomActive() || !firebaseOnline.ready || !firebaseOnline.user) return;
+
+  const api = firebaseOnline.api;
+  const code = onlineRoom.code;
+  const expiry = Date.now() + ttlMs;
+
+  try {
+    await api.set(
+      api.ref(api.database, `rooms/${code}/lastActivityAt`),
+      api.serverTimestamp()
+    );
+    await api.set(
+      api.ref(api.database, `rooms/${code}/expiresAt`),
+      expiry
+    );
+    await api.set(
+      api.ref(api.database, `cleanupQueue/${code}`),
+      { expiresAt: expiry }
+    );
+  } catch (error) {
+    console.warn("Could not refresh room expiry:", error);
+  }
+}
+
+async function cleanupExpiredRooms() {
+  if (!firebaseOnline.ready || !firebaseOnline.user || !firebaseOnline.api) return;
+
+  const api = firebaseOnline.api;
+
+  try {
+    const expiredQuery = api.query(
+      api.ref(api.database, "cleanupQueue"),
+      api.orderByChild("expiresAt"),
+      api.endAt(Date.now()),
+      api.limitToFirst(20)
+    );
+
+    const snapshot = await api.get(expiredQuery);
+    if (!snapshot.exists()) return;
+
+    for (const [code, entry] of Object.entries(snapshot.val() || {})) {
+      if (!entry || Number(entry.expiresAt || 0) > Date.now()) continue;
+
+      try {
+        await api.remove(api.ref(api.database, `rooms/${code}`));
+        await api.remove(api.ref(api.database, `cleanupQueue/${code}`));
+      } catch (error) {
+        console.debug(`Cleanup skipped ${code}:`, error.message || error);
+      }
+    }
+  } catch (error) {
+    console.warn("Expired-room cleanup query failed:", error);
+  }
+}
+
+async function registerOnlinePresence() {
+  if (!isOnlineRoomActive() || !firebaseOnline.ready || !firebaseOnline.user) return;
+
+  stopPresenceTimers();
+
+  const api = firebaseOnline.api;
+  const uid = firebaseOnline.user.uid;
+  const presenceRef = api.ref(api.database, `rooms/${onlineRoom.code}/presence/${uid}`);
+  const connectedRef = api.ref(api.database, ".info/connected");
+
+  if (typeof onlineConnectionUnsubscribe === "function") {
+    onlineConnectionUnsubscribe();
+  }
+  onlineConnectionUnsubscribe = null;
+
+  onlineConnectionUnsubscribe = api.onValue(connectedRef, async snapshot => {
+    if (!onlineRoom) return;
+
+    const connected = snapshot.val() === true;
+    onlineRoom.firebaseConnected = connected;
+
+    if (!connected) {
+      updateOnlineInteractionClasses();
+      renderOnlineRoomStatus(getOnlineRoomData());
+      setOnlineTurnFeedback("Connection lost — reconnecting…", "bad");
+      return;
+    }
+
+    try {
+      await api.onDisconnect(presenceRef).set({
+        role: onlineRoom.role,
+        online: false,
+        lastSeen: api.serverTimestamp()
+      });
+
+      await writeOnlinePresence(true);
+      await touchOnlineRoom();
+
+      stopPresenceTimers();
+
+      onlinePresenceHeartbeatTimer = setInterval(async () => {
+        if (!isOnlineRoomActive() || !onlineRoom.firebaseConnected) return;
+
+        try {
+          await writeOnlinePresence(true);
+        } catch (error) {
+          console.debug("Presence heartbeat failed:", error);
+        }
+      }, ONLINE_PRESENCE_HEARTBEAT_MS);
+
+      onlineExpiryRefreshTimer = setInterval(async () => {
+        if (!isOnlineRoomActive() || !onlineRoom.firebaseConnected) return;
+        await touchOnlineRoom();
+      }, ONLINE_EXPIRY_TOUCH_MS);
+
+      updateOnlineInteractionClasses();
+      renderOnlineRoomStatus(getOnlineRoomData());
+    } catch (error) {
+      console.warn("Could not register online presence:", error);
+    }
+  });
+}
+
+
+async function restoreOnlineSession() {
+  const session = loadOnlineSession();
+  if (!session || !firebaseOnline.ready || !firebaseOnline.user) return false;
+
+  try {
+    const api = firebaseOnline.api;
+    const roomRef = api.ref(api.database, `rooms/${session.code}`);
+    const snapshot = await api.get(roomRef);
+
+    if (!snapshot.exists()) {
+      clearOnlineSession();
+      return false;
+    }
+
+    const roomData = snapshot.val();
+    const uid = firebaseOnline.user.uid;
+
+    const belongsToHost =
+      session.role === "host" &&
+      roomData.host &&
+      roomData.host.uid === uid;
+
+    const belongsToGuest =
+      session.role === "guest" &&
+      roomData.guest &&
+      roomData.guest.uid === uid;
+
+    if (!belongsToHost && !belongsToGuest) {
+      clearOnlineSession();
+      return false;
+    }
+
+    if (roomData.version !== "21.4-online-polish") {
+      clearOnlineSession();
+      return false;
+    }
+
+    if (Number(roomData.expiresAt || 0) <= Date.now()) {
+      clearOnlineSession();
+
+      try {
+        await api.remove(roomRef);
+      } catch (error) {
+        console.debug("Expired restored room could not be removed:", error);
+      }
+
+      return false;
+    }
+
+    onlineRoom = {
+      code: session.code,
+      role: session.role,
+      uid,
+      selectedSymbol: "",
+      lastData: roomData,
+      lastMoveNumber: Number(roomData && roomData.game && roomData.game.moveNumber || 0),
+      syncedOnce: false,
+      resultsShown: false,
+      processing: false,
+      firebaseConnected: true
+    };
+
+    playMode = "online";
+    document.getElementById("playModeSelect").value = "online";
+
+    document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
+    clearMultiplayerLocks();
+    setOnlineRoomControls(true);
+    applyOnlineRoomSnapshot(roomData);
+    listenToOnlineRoom();
+    saveOnlineSession();
+    await registerOnlinePresence();
+
+    setOnlineTurnFeedback(
+      "Online room restored after refresh/reconnect.",
+      "good",
+      1800
+    );
+
+    return true;
+  } catch (error) {
+    console.warn("Could not restore online session:", error);
+    return false;
+  }
 }
 
 async function findUnusedRoomCode(maxAttempts = 12) {
@@ -399,12 +1065,24 @@ async function findUnusedRoomCode(maxAttempts = 12) {
 function stopOnlineRoomListener() {
   if (typeof onlineRoomUnsubscribe === "function") onlineRoomUnsubscribe();
   onlineRoomUnsubscribe = null;
+
+  if (typeof onlineConnectionUnsubscribe === "function") {
+    onlineConnectionUnsubscribe();
+  }
+  onlineConnectionUnsubscribe = null;
+
+  stopPresenceTimers();
 }
 
 function syncOnlineCompletedToTable(roomData) {
-  const completed = roomData && roomData.game && roomData.game.completed
-    ? roomData.game.completed
-    : {};
+  const log = roomData && roomData.game && typeof roomData.game.completedLog === "string"
+    ? roomData.game.completedLog
+    : "|";
+
+  const completed = {};
+  log.split("|").filter(Boolean).forEach(symbol => {
+    completed[symbol] = true;
+  });
 
   document.querySelectorAll(".slot").forEach(slot => {
     const symbol = slot.dataset.answer;
@@ -425,10 +1103,10 @@ function syncOnlineCompletedToTable(roomData) {
 }
 
 function flashOnlineWrongMove(move) {
-  if (!move || move.correct || !move.targetAnswer) return;
+  if (!move || move.correct || !move.targetNumber) return;
 
   const slot = [...document.querySelectorAll(".slot")]
-    .find(s => s.dataset.answer === move.targetAnswer);
+    .find(s => Number(s.dataset.number) === Number(move.targetNumber));
 
   if (!slot || slot.dataset.locked === "true") return;
 
@@ -495,6 +1173,19 @@ function showOnlineResults(roomData) {
 
   document.getElementById("onlineResultsSummary").textContent = summary;
 
+  const rematchButton = document.getElementById("onlineRematchButton");
+  const rematchStatus = document.getElementById("onlineRematchStatus");
+
+  if (onlineRoom.role === "host") {
+    rematchButton.disabled = false;
+    rematchButton.textContent = "Play again";
+    rematchStatus.textContent = "Host can start a rematch with new settings.";
+  } else {
+    rematchButton.disabled = true;
+    rematchButton.textContent = "Waiting for host";
+    rematchStatus.textContent = "Waiting for the host to start a rematch.";
+  }
+
   [["Host", hostName, hostStats], ["Guest", guestName, guestStats]].forEach(([suffix, name, stats]) => {
     document.getElementById(`onlineResultName${suffix}`).textContent = name;
     document.getElementById(`onlineResultScore${suffix}`).textContent = stats.score || 0;
@@ -514,6 +1205,10 @@ function applyOnlineRoomSnapshot(roomData) {
   if (!isOnlineRoomActive()) return;
 
   const previousMoveNumber = Number(onlineRoom.lastMoveNumber || 0);
+  const previousRoomData = onlineRoom.lastData || null;
+  const previousGameStatus =
+    previousRoomData && previousRoomData.game ? previousRoomData.game.status : null;
+
   onlineRoom.lastData = roomData;
 
   const difficulty = roomData && roomData.settings ? roomData.settings.difficulty : null;
@@ -537,7 +1232,29 @@ function applyOnlineRoomSnapshot(roomData) {
   const game = roomData && roomData.game ? roomData.game : null;
   const moveNumber = Number(game && game.moveNumber ? game.moveNumber : 0);
 
-  if (!onlineRoom.syncedOnce) {
+  const rematchStarted = Boolean(
+    game &&
+    game.status === "playing" &&
+    moveNumber === 0 &&
+    previousGameStatus === "finished"
+  );
+
+  if (rematchStarted) {
+    onlineRoom.resultsShown = false;
+    onlineRoom.syncedOnce = true;
+    onlineRoom.lastMoveNumber = 0;
+    onlineRoom.selectedSymbol = "";
+
+    const resultsDialog = document.getElementById("onlineResultsDialog");
+    if (resultsDialog.open) resultsDialog.close();
+
+    const rematchDialog = document.getElementById("onlineRematchDialog");
+    if (rematchDialog.open) rematchDialog.close();
+
+    renderOnlineSelectionState();
+    updateOnlineInteractionClasses();
+    setOnlineTurnFeedback("Rematch started — fresh board, scores reset.", "good", 1800);
+  } else if (!onlineRoom.syncedOnce) {
     onlineRoom.syncedOnce = true;
     onlineRoom.lastMoveNumber = moveNumber;
     setDefaultOnlineTurnFeedback();
@@ -601,6 +1318,8 @@ function createInitialOnlineGame(elementLimit) {
     elementLimit,
     elementOrder: shuffledSymbolsForLimit(elementLimit),
     moveNumber: 0,
+    completedLog: "|",
+    completedCount: 0,
     players: {
       host: blankOnlineStats(),
       guest: blankOnlineStats()
@@ -622,32 +1341,29 @@ async function createOnlineRoom() {
   try {
     const api = firebaseOnline.api;
     const code = await findUnusedRoomCode();
-    const clientId = makeClientId();
+    const uid = firebaseOnline.user.uid;
     const roomRef = api.ref(api.database, `rooms/${code}`);
 
     const roomData = {
-      version: "21.2-stage2",
+      version: "21.4-online-polish",
       status: "waiting",
       createdAt: api.serverTimestamp(),
-      host: { id: clientId, name: hostName },
+      lastActivityAt: api.serverTimestamp(),
+      expiresAt: Date.now() + ONLINE_ROOM_TTL_MS,
+      host: { uid, name: hostName },
       settings: { difficulty, elementLimit },
       game: createInitialOnlineGame(elementLimit)
     };
 
     await api.set(roomRef, roomData);
 
-    try {
-      await api.onDisconnect(roomRef).remove();
-    } catch (disconnectError) {
-      console.warn("Could not register host onDisconnect cleanup:", disconnectError);
-    }
 
     const serverRoom = (await api.get(roomRef)).val();
 
     onlineRoom = {
       code,
       role: "host",
-      clientId,
+      uid,
       hostName,
       selectedSymbol: "",
       lastData: serverRoom,
@@ -660,12 +1376,25 @@ async function createOnlineRoom() {
     playMode = "online";
     document.getElementById("playModeSelect").value = "online";
     document.getElementById("onlineMultiplayerDialog").close();
+    clearInviteRoomFromUrl();
 
     document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
     clearMultiplayerLocks();
     setOnlineRoomControls(true);
     applyOnlineRoomSnapshot(serverRoom);
     listenToOnlineRoom();
+    saveOnlineSession();
+
+    try {
+      await api.set(
+        api.ref(api.database, `cleanupQueue/${code}`),
+        { expiresAt: Number(serverRoom.expiresAt) }
+      );
+    } catch (error) {
+      console.warn("Could not register room cleanup entry:", error);
+    }
+
+    await registerOnlinePresence();
   } catch (error) {
     console.error(error);
     setOnlineSetupMessage(error.message || String(error), true);
@@ -693,23 +1422,31 @@ async function joinOnlineRoom() {
     const roomRef = api.ref(api.database, `rooms/${code}`);
     const guestRef = api.ref(api.database, `rooms/${code}/guest`);
     const statusRef = api.ref(api.database, `rooms/${code}/status`);
-    const gameStatusRef = api.ref(api.database, `rooms/${code}/game/status`);
-    const clientId = makeClientId();
+    const uid = firebaseOnline.user.uid;
 
     const roomSnapshot = await api.get(roomRef);
     if (!roomSnapshot.exists()) throw new Error("Room not found. Check the code and try again.");
 
     const existingRoom = roomSnapshot.val();
     if (!existingRoom.host) throw new Error("This room is invalid because it has no host.");
-    if (existingRoom.version !== "21.2-stage2") {
-      throw new Error("This room was created by a different development version. Create a new Stage 2 room.");
+    if (existingRoom.version !== "21.4-online-polish") {
+      throw new Error("This room was created by a different development version. Create a new Security 1 room.");
     }
+    if (Number(existingRoom.expiresAt || 0) <= Date.now()) {
+      throw new Error("That room has expired. Ask the host to create a new room.");
+    }
+
     if (existingRoom.game && existingRoom.game.status === "finished") {
       throw new Error("That game has already finished.");
     }
 
     const guestResult = await api.runTransaction(guestRef, currentGuest => {
-      if (currentGuest === null) return { id: clientId, name: guestName };
+      if (currentGuest === null) return { uid, name: guestName };
+
+      if (currentGuest.uid === uid) {
+        return { uid, name: guestName };
+      }
+
       return;
     });
 
@@ -728,25 +1465,16 @@ async function joinOnlineRoom() {
       );
     }
 
-    await api.update(roomRef, {
-      status: "playing",
-      "game/status": "playing"
-    });
+    await api.set(statusRef, "playing");
+    await api.set(api.ref(api.database, `rooms/${code}/game/status`), "playing");
 
-    try {
-      await api.onDisconnect(guestRef).remove();
-      await api.onDisconnect(statusRef).set("waiting");
-      await api.onDisconnect(gameStatusRef).set("waiting");
-    } catch (disconnectError) {
-      console.warn("Could not register guest onDisconnect cleanup:", disconnectError);
-    }
 
     const roomData = (await api.get(roomRef)).val();
 
     onlineRoom = {
       code,
       role: "guest",
-      clientId,
+      uid,
       hostName: roomData && roomData.host ? roomData.host.name : "Player 1",
       selectedSymbol: "",
       lastData: roomData,
@@ -759,12 +1487,16 @@ async function joinOnlineRoom() {
     playMode = "online";
     document.getElementById("playModeSelect").value = "online";
     document.getElementById("onlineMultiplayerDialog").close();
+    clearInviteRoomFromUrl();
 
     document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
     clearMultiplayerLocks();
     setOnlineRoomControls(true);
     applyOnlineRoomSnapshot(roomData);
     listenToOnlineRoom();
+    saveOnlineSession();
+    await registerOnlinePresence();
+    await touchOnlineRoom();
   } catch (error) {
     console.error("Join room failed:", error);
     setOnlineSetupMessage(error.message || String(error), true);
@@ -776,6 +1508,16 @@ function selectOnlineElement(symbol) {
 
   if (!onlineGameIsPlaying()) {
     setOnlineTurnFeedback("Wait for Player 2 to join.");
+    return;
+  }
+
+  if (!onlineBothPlayersAvailable()) {
+    const disconnectedRole = onlineDisconnectedRole();
+    setOnlineTurnFeedback(
+      disconnectedRole
+        ? `Game paused — waiting for ${onlineRoleName(disconnectedRole)} to reconnect.`
+        : "Game paused — waiting for both players."
+    );
     return;
   }
 
@@ -813,6 +1555,16 @@ async function attemptOnlinePlacement(slot, symbol) {
     return;
   }
 
+  if (!onlineBothPlayersAvailable()) {
+    const disconnectedRole = onlineDisconnectedRole();
+    setOnlineTurnFeedback(
+      disconnectedRole
+        ? `Game paused — waiting for ${onlineRoleName(disconnectedRole)} to reconnect.`
+        : "Game paused — waiting for both players."
+    );
+    return;
+  }
+
   if (!onlineMyTurn()) {
     setOnlineTurnFeedback(`It is ${onlineRoleName(getOnlineGame().currentTurn)}'s turn.`);
     return;
@@ -827,24 +1579,33 @@ async function attemptOnlinePlacement(slot, symbol) {
   try {
     const api = firebaseOnline.api;
     const gameRef = api.ref(api.database, `rooms/${onlineRoom.code}/game`);
+    const roomStatusRef = api.ref(api.database, `rooms/${onlineRoom.code}/status`);
     const roomRef = api.ref(api.database, `rooms/${onlineRoom.code}`);
 
+    // Warm the local transaction cache before starting, just as in the
+    // earlier join fix.
     await api.get(gameRef);
 
     const role = onlineRoom.role;
-    const targetAnswer = slot.dataset.answer;
-    const isCorrect = targetAnswer === symbol;
+    const targetNumber = Number(slot.dataset.number);
+    const localElement = getElement(symbol);
+    const isCorrect = Boolean(localElement && Number(localElement[0]) === targetNumber);
     const elementLimit = getOnlineElementLimit();
 
     const result = await api.runTransaction(gameRef, currentGame => {
       if (!currentGame || currentGame.status !== "playing") return;
       if (currentGame.currentTurn !== role) return;
 
-      const completed = currentGame.completed || {};
-      if (completed[symbol]) return;
+      const completedLog = typeof currentGame.completedLog === "string"
+        ? currentGame.completedLog
+        : "|";
+      const token = `|${symbol}|`;
+
+      if (completedLog.includes(token)) return;
 
       const players = currentGame.players || {};
       const player = { ...blankOnlineStats(), ...(players[role] || {}) };
+
       player.attempts = Number(player.attempts || 0) + 1;
 
       let points = 0;
@@ -855,10 +1616,14 @@ async function attemptOnlinePlacement(slot, symbol) {
         player.correct = Number(player.correct || 0) + 1;
         points = pointsForStreak(player.streak);
         player.score = Number(player.score || 0) + points;
-        completed[symbol] = { by: role };
+
+        currentGame.completedLog = `${completedLog}${symbol}|`;
+        currentGame.completedCount = Number(currentGame.completedCount || 0) + 1;
       } else {
         player.streak = 0;
         currentGame.currentTurn = role === "host" ? "guest" : "host";
+        currentGame.completedLog = completedLog;
+        currentGame.completedCount = Number(currentGame.completedCount || 0);
       }
 
       currentGame.players = {
@@ -867,20 +1632,19 @@ async function attemptOnlinePlacement(slot, symbol) {
         [role]: player
       };
 
-      currentGame.completed = completed;
       currentGame.moveNumber = Number(currentGame.moveNumber || 0) + 1;
       currentGame.lastMove = {
         number: currentGame.moveNumber,
         by: role,
         symbol,
-        targetAnswer,
+        targetNumber,
         correct: isCorrect,
         points,
         streakAfter: player.streak,
         at: Date.now()
       };
 
-      if (isCorrect && Object.keys(completed).length >= elementLimit) {
+      if (isCorrect && Number(currentGame.completedCount || 0) >= elementLimit) {
         currentGame.status = "finished";
         currentGame.finishedAt = Date.now();
 
@@ -896,20 +1660,25 @@ async function attemptOnlinePlacement(slot, symbol) {
     if (!result.committed) {
       const latest = await api.get(roomRef);
       if (latest.exists()) applyOnlineRoomSnapshot(latest.val());
+
       setOnlineTurnFeedback(
-        "That move could not be accepted. The game state has been refreshed.",
+        "Firebase rejected that move or the game state changed. The board has been refreshed.",
         "bad",
-        1600
+        1800
       );
       return;
     }
 
     if (result.snapshot && result.snapshot.val() && result.snapshot.val().status === "finished") {
       try {
-        await api.update(roomRef, { status: "finished" });
+        await api.set(roomStatusRef, "finished");
       } catch (error) {
         console.warn("Could not update room finished status:", error);
       }
+
+      await touchOnlineRoom(ONLINE_FINISHED_TTL_MS);
+    } else {
+      await touchOnlineRoom();
     }
 
     onlineRoom.selectedSymbol = "";
@@ -917,12 +1686,11 @@ async function attemptOnlinePlacement(slot, symbol) {
     updateOnlineInteractionClasses();
   } catch (error) {
     console.error("Online placement failed:", error);
-    setOnlineTurnFeedback(`Move failed: ${error.message || error}`, "bad", 2200);
+    setOnlineTurnFeedback(`Move rejected: ${error.message || error}`, "bad", 2400);
   } finally {
     onlineRoom.processing = false;
   }
 }
-
 function handleSlotTap(event) {
   if (!isOnlineRoomActive()) return;
 
@@ -932,6 +1700,120 @@ function handleSlotTap(event) {
   }
 
   attemptOnlinePlacement(event.currentTarget, onlineRoom.selectedSymbol);
+}
+
+
+function setOnlineRematchSetupMessage(message = "", isError = false) {
+  const el = document.getElementById("onlineRematchSetupMessage");
+  if (!el) return;
+
+  el.textContent = message;
+  el.classList.toggle("error", Boolean(isError));
+}
+
+function openOnlineRematchDialog() {
+  if (!isOnlineRoomActive() || onlineRoom.role !== "host") return;
+
+  const data = getOnlineRoomData();
+  const game = data && data.game ? data.game : null;
+
+  if (!game || game.status !== "finished") return;
+
+  const difficulty =
+    data.settings && data.settings.difficulty
+      ? data.settings.difficulty
+      : "beginner";
+
+  const elementLimit =
+    data.settings && Number(data.settings.elementLimit)
+      ? String(Number(data.settings.elementLimit))
+      : "20";
+
+  document.getElementById("onlineRematchDifficultySelect").value = difficulty;
+  document.getElementById("onlineRematchElementSetSelect").value =
+    ["20", "118"].includes(elementLimit) ? elementLimit : "20";
+
+  setOnlineRematchSetupMessage("");
+
+  const resultsDialog = document.getElementById("onlineResultsDialog");
+  if (resultsDialog.open) resultsDialog.close();
+
+  document.getElementById("onlineRematchDialog").showModal();
+}
+
+async function startOnlineRematch() {
+  if (!isOnlineRoomActive() || onlineRoom.role !== "host") return;
+
+  const data = getOnlineRoomData();
+  const game = data && data.game ? data.game : null;
+
+  if (!data || !data.guest || !game || game.status !== "finished") {
+    setOnlineRematchSetupMessage(
+      "The previous game must be finished and both players must still be in the room.",
+      true
+    );
+    return;
+  }
+
+  if (!onlineBothPlayersAvailable(data)) {
+    setOnlineRematchSetupMessage(
+      "Wait for both players to reconnect before starting the rematch.",
+      true
+    );
+    return;
+  }
+
+  const difficulty =
+    document.getElementById("onlineRematchDifficultySelect").value;
+
+  const elementLimit =
+    Number(document.getElementById("onlineRematchElementSetSelect").value) || 20;
+
+  setOnlineRematchSetupMessage("Starting rematch…");
+
+  try {
+    const api = firebaseOnline.api;
+    const code = onlineRoom.code;
+
+    const settingsRef =
+      api.ref(api.database, `rooms/${code}/settings`);
+
+    const gameRef =
+      api.ref(api.database, `rooms/${code}/game`);
+
+    const statusRef =
+      api.ref(api.database, `rooms/${code}/status`);
+
+    // The v21.4 rules permit the host to update rematch settings only
+    // after the previous game has finished.
+    await api.set(settingsRef, {
+      difficulty,
+      elementLimit
+    });
+
+    const newGame = createInitialOnlineGame(elementLimit);
+    newGame.status = "playing";
+
+    await api.set(gameRef, newGame);
+    await api.set(statusRef, "playing");
+
+    onlineRoom.resultsShown = false;
+    onlineRoom.selectedSymbol = "";
+    onlineRoom.lastMoveNumber = 0;
+    onlineRoom.syncedOnce = false;
+    onlineRoom.appliedDifficulty = null;
+
+    await touchOnlineRoom();
+
+    const rematchDialog = document.getElementById("onlineRematchDialog");
+    if (rematchDialog.open) rematchDialog.close();
+  } catch (error) {
+    console.error("Could not start online rematch:", error);
+    setOnlineRematchSetupMessage(
+      error && error.message ? error.message : String(error),
+      true
+    );
+  }
 }
 
 async function leaveOnlineRoom(removeFromDatabase = true) {
@@ -945,6 +1827,7 @@ async function leaveOnlineRoom(removeFromDatabase = true) {
 
   const leavingRoom = onlineRoom;
   stopOnlineRoomListener();
+  clearOnlineSession();
 
   if (onlineFeedbackTimer) {
     window.clearTimeout(onlineFeedbackTimer);
@@ -954,15 +1837,38 @@ async function leaveOnlineRoom(removeFromDatabase = true) {
   if (removeFromDatabase && firebaseOnline.ready) {
     try {
       const api = firebaseOnline.api;
+      const uid = firebaseOnline.user && firebaseOnline.user.uid
+        ? firebaseOnline.user.uid
+        : leavingRoom.uid;
+
+      if (uid) {
+        try {
+          await api.remove(api.ref(api.database, `rooms/${leavingRoom.code}/presence/${uid}`));
+        } catch (presenceError) {
+          console.warn("Could not remove presence record:", presenceError);
+        }
+      }
 
       if (leavingRoom.role === "host") {
+        try {
+          await api.remove(api.ref(api.database, `cleanupQueue/${leavingRoom.code}`));
+        } catch (cleanupError) {
+          console.warn("Could not remove cleanup queue entry:", cleanupError);
+        }
+
         await api.remove(api.ref(api.database, `rooms/${leavingRoom.code}`));
       } else {
-        await api.update(api.ref(api.database, `rooms/${leavingRoom.code}`), {
-          guest: null,
-          status: "waiting",
-          "game/status": "waiting"
-        });
+        await api.set(
+          api.ref(api.database, `rooms/${leavingRoom.code}/game/status`),
+          "waiting"
+        );
+        await api.set(
+          api.ref(api.database, `rooms/${leavingRoom.code}/status`),
+          "waiting"
+        );
+        await api.remove(
+          api.ref(api.database, `rooms/${leavingRoom.code}/guest`)
+        );
       }
     } catch (error) {
       console.warn("Could not clean up Firebase room:", error);
@@ -977,6 +1883,8 @@ async function leaveOnlineRoom(removeFromDatabase = true) {
     "online-not-my-turn",
     "online-waiting",
     "online-finished",
+    "online-paused",
+    "online-local-reconnecting",
     "online-element-selected"
   );
 
@@ -993,7 +1901,7 @@ async function leaveOnlineRoom(removeFromDatabase = true) {
   requestAnimationFrame(fitLayoutToViewport);
 }
 
-function openOnlineDialog() {
+function openOnlineDialog(inviteCode = "") {
   document.getElementById("onlineDifficultySelect").value =
     document.getElementById("modeSelect").value;
 
@@ -1004,10 +1912,29 @@ function openOnlineDialog() {
   document.getElementById("onlineElementSetSelect").value =
     ["20", "118"].includes(defaultSet) ? defaultSet : "20";
 
-  document.getElementById("onlineRoomCodeInput").value = "";
-  setOnlineSetupMessage("");
+  const code = normaliseRoomCode(inviteCode);
+  document.getElementById("onlineRoomCodeInput").value =
+    code.length === 6 ? code : "";
+
+  showInviteInOnlineDialog(code);
+
+  setOnlineSetupMessage(
+    code.length === 6
+      ? "Invite ready — enter your player name and join."
+      : ""
+  );
+
   updateFirebaseLoadStatus();
-  document.getElementById("onlineMultiplayerDialog").showModal();
+
+  const dialog = document.getElementById("onlineMultiplayerDialog");
+  if (!dialog.open) dialog.showModal();
+
+  if (code.length === 6) {
+    window.setTimeout(() => {
+      document.getElementById("onlineGuestNameInput").focus();
+      document.getElementById("onlineGuestNameInput").select();
+    }, 50);
+  }
 }
 
 function isLocalMultiplayerActive() {
@@ -2305,6 +3232,40 @@ document.getElementById("closeOnlineResultsButton").addEventListener("click", ()
   document.getElementById("onlineResultsDialog").close();
 });
 
+
+document.getElementById("onlineRematchButton").addEventListener(
+  "click",
+  openOnlineRematchDialog
+);
+
+document.getElementById("startOnlineRematchButton").addEventListener(
+  "click",
+  startOnlineRematch
+);
+
+document.getElementById("cancelOnlineRematchButton").addEventListener(
+  "click",
+  () => {
+    document.getElementById("onlineRematchDialog").close();
+
+    if (
+      isOnlineRoomActive() &&
+      getOnlineGame() &&
+      getOnlineGame().status === "finished"
+    ) {
+      document.getElementById("onlineResultsDialog").showModal();
+    }
+  }
+);
+
+document.getElementById("onlineRematchDialog").addEventListener(
+  "cancel",
+  event => {
+    event.preventDefault();
+    document.getElementById("cancelOnlineRematchButton").click();
+  }
+);
+
 document.getElementById("leaveAfterOnlineGameButton").addEventListener("click", async () => {
   document.getElementById("onlineResultsDialog").close();
   await leaveOnlineRoom(true);
@@ -2319,14 +3280,21 @@ document.getElementById("onlineRoomCodeInput").addEventListener("input", event =
 
 document.getElementById("cancelOnlineGameButton").addEventListener("click", () => {
   document.getElementById("onlineMultiplayerDialog").close();
+  clearInviteRoomFromUrl();
+  showInviteInOnlineDialog("");
   document.getElementById("playModeSelect").value = isOnlineRoomActive() ? "online" : "single";
 });
 
 document.getElementById("onlineMultiplayerDialog").addEventListener("cancel", event => {
   event.preventDefault();
-  document.getElementById("onlineMultiplayerDialog").close();
-  document.getElementById("playModeSelect").value = isOnlineRoomActive() ? "online" : "single";
+  document.getElementById("cancelOnlineGameButton").click();
 });
+
+
+document.getElementById("copyInviteLinkButton").addEventListener(
+  "click",
+  copyOnlineInviteLink
+);
 
 document.getElementById("copyRoomCodeButton").addEventListener("click", async () => {
   if (!onlineRoom) return;
