@@ -85,6 +85,19 @@
     };
   }
 
+  function buildElementSetsSeed() {
+    const out = {};
+    for (const option of ELEMENT_SET_OPTIONS) {
+      const resolved = resolveElementSet(option.id);
+      out[option.id] = {
+        count: resolved.length,
+        maxTarget: Math.max(...resolved.map(el => el[0])),
+        members: Object.fromEntries(resolved.map(el => [el[1], true]))
+      };
+    }
+    return out;
+  }
+
   return {
     elements,
     categoryOrder,
@@ -92,6 +105,7 @@
     getCategory,
     resolveElementSet,
     getElementSetMeta,
-    normaliseElementSetId
+    normaliseElementSetId,
+    buildElementSetsSeed
   };
 });
