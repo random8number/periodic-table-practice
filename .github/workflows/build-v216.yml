@@ -1,4 +1,4 @@
-name: Build and verify v21.6
+name: Final verify and clean v21.6 staging
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  build-v216:
+  finalise-v216:
     runs-on: ubuntu-latest
     steps:
       - name: Check out feature branch
@@ -20,42 +20,7 @@ jobs:
           ref: v21.6-category-games
           fetch-depth: 0
 
-      - name: Verify staged patches
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "9a8471501ac717f04115b12f962c8a034050362c183df0930b9346d673680c71  scripts/v216/app.patch" | sha256sum -c -
-          echo "4780dfbd13ac0fe0a4c73c2c84fd05a4c739b50c660f959b2d5b37d0afa82cd6  scripts/v216/styles.patch" | sha256sum -c -
-
-      - name: Apply v21.6 runtime patches
-        shell: bash
-        run: |
-          set -euo pipefail
-          git apply --check scripts/v216/app.patch
-          git apply scripts/v216/app.patch
-          git apply --check scripts/v216/styles.patch
-          git apply scripts/v216/styles.patch
-
-      - name: Reconstruct Firebase rules
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat \
-            scripts/v216/rules.b64.00 \
-            scripts/v216/rules.b64.01 \
-            scripts/v216/rules.b64.02a \
-            scripts/v216/rules.b64.02b \
-            scripts/v216/rules.b64.02c \
-            scripts/v216/rules.b64.02d \
-            scripts/v216/rules.b64.02e \
-            scripts/v216/rules.b64.02f \
-            scripts/v216/rules.b64.02g \
-            scripts/v216/rules.b64.02h \
-            scripts/v216/rules.b64.02i \
-            | base64 --decode > database.rules.v21.6.json
-          echo "14eb56e70552fbefa0bcd0b777bc18fdccc1cc0c10276b492640e0e6fe31caac  database.rules.v21.6.json" | sha256sum -c -
-
-      - name: Verify JavaScript, tests, JSON and final hashes
+      - name: Final verification
         shell: bash
         run: |
           set -euo pipefail
@@ -65,14 +30,14 @@ jobs:
           node -e "JSON.parse(require('node:fs').readFileSync('elementSets.seed.json','utf8')); JSON.parse(require('node:fs').readFileSync('database.rules.v21.6.json','utf8')); console.log('JSON OK')"
           echo "dcf71644537615260acc37d59f3239f9bb151dc4c5ce2fc5a8fa1415c2d9e077  app.js" | sha256sum -c -
           echo "78ed127d01f995c8216ab25a9fc0f10daceff9ad9fdec19b956c8b6a50798be7  styles.css" | sha256sum -c -
+          echo "14eb56e70552fbefa0bcd0b777bc18fdccc1cc0c10276b492640e0e6fe31caac  database.rules.v21.6.json" | sha256sum -c -
 
-      - name: Commit verified v21.6 runtime files
+      - name: Remove temporary build staging
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app.js styles.css database.rules.v21.6.json
-          git diff --cached --quiet && exit 0
-          git commit -m "feat: build verified v21.6 category runtime"
+          git rm -r scripts/v216 .github/workflows/build-v216.yml
+          git commit -m "chore: remove v21.6 build staging"
           git push origin HEAD:v21.6-category-games
