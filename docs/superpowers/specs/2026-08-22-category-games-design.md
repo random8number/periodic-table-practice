@@ -35,7 +35,9 @@ The same selector is used for Local 2 Player setup, Online 2 Player room creatio
 
 The browser will continue using the app's existing `getCategory(...)` classification logic, so colours and category-game membership share the same classification.
 
-In particular, Hydrogen remains in **Reactive non-metals**, matching the current app.
+Hydrogen remains in **Reactive non-metals**, matching the intended current classification.
+
+As part of v21.6, correct the existing ordering bug in `getCategory(...)` so **Lanthanum (La) is classified as Lanthanides** and **Actinium (Ac) is classified as Actinides** before Group 1 logic is considered. The intended category counts are therefore 6 Alkali metals, 15 Lanthanides and 15 Actinides.
 
 The ten category labels stay exactly as currently used by the app:
 - Alkali metals
@@ -125,7 +127,7 @@ For numeric sets:
 - `first36` => atomic numbers 1–36
 - `all118` => all elements
 
-For category sets, membership is determined by the existing category classifier.
+For category sets, membership is determined by the corrected existing category classifier.
 
 Local multiplayer uses this helper directly.
 
@@ -184,7 +186,7 @@ If trusted `/elementSets` data has not been deployed but the web build expects i
 
 Primary implementation files:
 - `index.html` — add category choices and v21.6 version label
-- `app.js` — shared element-set resolver, local/online setup, room/game state, rematch and display logic
+- `app.js` — corrected category classifier, shared element-set resolver, local/online setup, room/game state, rematch and display logic
 - `database.rules.v21.6.json` — secure set membership and new room schema validation
 - `elementSets.seed.json` — trusted Firebase seed data
 - `README.md` / setup notes — deployment and test instructions
@@ -193,11 +195,16 @@ Primary implementation files:
 
 ## Testing strategy
 
-Implementation will be test-driven around the new set resolver and category membership before production logic is changed.
+Implementation will be test-driven around the corrected category classifier and new set resolver before production logic is changed.
 
 Required checks:
-- each named category resolves to the elements classified by the existing app logic
 - Hydrogen is included in Reactive non-metals
+- Lanthanum is included in Lanthanides and not Alkali metals
+- Actinium is included in Actinides and not Alkali metals
+- Alkali metals resolves to 6 elements
+- Lanthanides resolves to 15 elements
+- Actinides resolves to 15 elements
+- each named category resolves to the elements classified by the corrected app logic
 - Noble gases resolves to exactly 7 elements
 - First 20, First 36 and All 118 remain unchanged
 - local category game displays only the selected set and finishes at its set count
