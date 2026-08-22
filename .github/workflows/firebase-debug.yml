@@ -12,7 +12,7 @@ on:
       - .github/workflows/firebase-debug.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   rules-test:
@@ -32,5 +32,23 @@ jobs:
             "emulators": { "database": { "port": 9000 }, "ui": { "enabled": false } }
           }
           JSON
-      - name: Reproduce v21.6 room creation
-        run: npx firebase emulators:exec --only database --project demo-periodic-table "node --test tests/firebase-room-create-emulator.test.mjs"
+      - name: Reproduce v21.6 room creation and capture result
+        id: reproduce
+        shell: bash
+        run: |
+          set +e
+          npx firebase emulators:exec --only database --project demo-periodic-table "node --test tests/firebase-room-create-emulator.test.mjs" > firebase-debug-result.txt 2>&1
+          rc=$?
+          echo "" >> firebase-debug-result.txt
+          echo "EXIT_CODE=$rc" >> firebase-debug-result.txt
+          cat firebase-debug-result.txt
+          exit 0
+      - name: Commit diagnostic result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firebase-debug-result.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "test: capture Firebase rules reproduction"
+            git push origin HEAD:v21.6.1-firebase-debug
+          fi
