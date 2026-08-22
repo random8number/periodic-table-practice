@@ -1,0 +1,537 @@
+--- a/app.js
++++ b/app.js
+@@ -1,19 +1,6 @@
+-const elements = [
+-  [1,"H","Hydrogen",1,1],[2,"He","Helium",18,1],
+-  [3,"Li","Lithium",1,2],[4,"Be","Beryllium",2,2],[5,"B","Boron",13,2],[6,"C","Carbon",14,2],[7,"N","Nitrogen",15,2],[8,"O","Oxygen",16,2],[9,"F","Fluorine",17,2],[10,"Ne","Neon",18,2],
+-  [11,"Na","Sodium",1,3],[12,"Mg","Magnesium",2,3],[13,"Al","Aluminium",13,3],[14,"Si","Silicon",14,3],[15,"P","Phosphorus",15,3],[16,"S","Sulfur",16,3],[17,"Cl","Chlorine",17,3],[18,"Ar","Argon",18,3],
+-  [19,"K","Potassium",1,4],[20,"Ca","Calcium",2,4],[21,"Sc","Scandium",3,4],[22,"Ti","Titanium",4,4],[23,"V","Vanadium",5,4],[24,"Cr","Chromium",6,4],[25,"Mn","Manganese",7,4],[26,"Fe","Iron",8,4],[27,"Co","Cobalt",9,4],[28,"Ni","Nickel",10,4],[29,"Cu","Copper",11,4],[30,"Zn","Zinc",12,4],[31,"Ga","Gallium",13,4],[32,"Ge","Germanium",14,4],[33,"As","Arsenic",15,4],[34,"Se","Selenium",16,4],[35,"Br","Bromine",17,4],[36,"Kr","Krypton",18,4],
+-  [37,"Rb","Rubidium",1,5],[38,"Sr","Strontium",2,5],[39,"Y","Yttrium",3,5],[40,"Zr","Zirconium",4,5],[41,"Nb","Niobium",5,5],[42,"Mo","Molybdenum",6,5],[43,"Tc","Technetium",7,5],[44,"Ru","Ruthenium",8,5],[45,"Rh","Rhodium",9,5],[46,"Pd","Palladium",10,5],[47,"Ag","Silver",11,5],[48,"Cd","Cadmium",12,5],[49,"In","Indium",13,5],[50,"Sn","Tin",14,5],[51,"Sb","Antimony",15,5],[52,"Te","Tellurium",16,5],[53,"I","Iodine",17,5],[54,"Xe","Xenon",18,5],
+-  [55,"Cs","Caesium",1,6],[56,"Ba","Barium",2,6],[57,"La","Lanthanum",1,8],[58,"Ce","Cerium",2,8],[59,"Pr","Praseodymium",3,8],[60,"Nd","Neodymium",4,8],[61,"Pm","Promethium",5,8],[62,"Sm","Samarium",6,8],[63,"Eu","Europium",7,8],[64,"Gd","Gadolinium",8,8],[65,"Tb","Terbium",9,8],[66,"Dy","Dysprosium",10,8],[67,"Ho","Holmium",11,8],[68,"Er","Erbium",12,8],[69,"Tm","Thulium",13,8],[70,"Yb","Ytterbium",14,8],[71,"Lu","Lutetium",15,8],
+-  [72,"Hf","Hafnium",4,6],[73,"Ta","Tantalum",5,6],[74,"W","Tungsten",6,6],[75,"Re","Rhenium",7,6],[76,"Os","Osmium",8,6],[77,"Ir","Iridium",9,6],[78,"Pt","Platinum",10,6],[79,"Au","Gold",11,6],[80,"Hg","Mercury",12,6],[81,"Tl","Thallium",13,6],[82,"Pb","Lead",14,6],[83,"Bi","Bismuth",15,6],[84,"Po","Polonium",16,6],[85,"At","Astatine",17,6],[86,"Rn","Radon",18,6],
+-  [87,"Fr","Francium",1,7],[88,"Ra","Radium",2,7],[89,"Ac","Actinium",1,9],[90,"Th","Thorium",2,9],[91,"Pa","Protactinium",3,9],[92,"U","Uranium",4,9],[93,"Np","Neptunium",5,9],[94,"Pu","Plutonium",6,9],[95,"Am","Americium",7,9],[96,"Cm","Curium",8,9],[97,"Bk","Berkelium",9,9],[98,"Cf","Californium",10,9],[99,"Es","Einsteinium",11,9],[100,"Fm","Fermium",12,9],[101,"Md","Mendelevium",13,9],[102,"No","Nobelium",14,9],[103,"Lr","Lawrencium",15,9],
+-  [104,"Rf","Rutherfordium",4,7],[105,"Db","Dubnium",5,7],[106,"Sg","Seaborgium",6,7],[107,"Bh","Bohrium",7,7],[108,"Hs","Hassium",8,7],[109,"Mt","Meitnerium",9,7],[110,"Ds","Darmstadtium",10,7],[111,"Rg","Roentgenium",11,7],[112,"Cn","Copernicium",12,7],[113,"Nh","Nihonium",13,7],[114,"Fl","Flerovium",14,7],[115,"Mc","Moscovium",15,7],[116,"Lv","Livermorium",16,7],[117,"Ts","Tennessine",17,7],[118,"Og","Oganesson",18,7]
+-];
+-
+-const categoryOrder = [
+-  "Alkali metals","Alkaline earth metals","Transition metals","Post-transition metals",
+-  "Metalloids","Reactive non-metals","Halogens","Noble gases","Lanthanides","Actinides"
+-];
++const PeriodicElementSets = window.PeriodicElementSets;
++if (!PeriodicElementSets) throw new Error("element-sets.js failed to load");
++const { elements, categoryOrder } = PeriodicElementSets;
+ 
+ let currentSort = "alpha";
+ let tableColours = true;
+@@ -70,7 +57,7 @@
+   user: null
+ };
+ 
+-const ONLINE_SESSION_KEY = "periodicTableOnlineSession-v21.5-first36";
++const ONLINE_SESSION_KEY = "periodicTableOnlineSession-v21.6-category-games";
+ 
+ let onlineRoom = null;
+ let onlineRoomUnsubscribe = null;
+@@ -93,6 +80,55 @@
+ const score = document.getElementById("score");
+ 
+ 
++function populateElementSetSelects() {
++  ["localElementSetSelect", "onlineElementSetSelect", "onlineRematchElementSetSelect"].forEach(id => {
++    const select = document.getElementById(id);
++    if (!select) return;
++    select.innerHTML = "";
++    PeriodicElementSets.ELEMENT_SET_OPTIONS.forEach(option => {
++      const element = document.createElement("option");
++      element.value = option.id;
++      element.textContent = option.label;
++      select.appendChild(element);
++    });
++  });
++}
++
++function getSetMetaOrNull(value) {
++  const id = PeriodicElementSets.normaliseElementSetId(value);
++  if (!id) return null;
++  try {
++    return PeriodicElementSets.getElementSetMeta(id);
++  } catch (error) {
++    return null;
++  }
++}
++
++function getActiveElementSetId() {
++  if (isLocalMultiplayerActive()) return localGame.elementSetId;
++  if (isOnlineRoomActive()) return getOnlineElementSetId();
++  return "all118";
++}
++
++function isElementPlayable(symbol) {
++  if (!symbol) return false;
++  if (!isLocalMultiplayerActive() && !isOnlineRoomActive()) return true;
++  const id = getActiveElementSetId();
++  if (!id) return false;
++  try {
++    return PeriodicElementSets.resolveElementSet(id).some(el => el[1] === symbol);
++  } catch (error) {
++    return false;
++  }
++}
++
++function shuffledSymbolsForSet(setId) {
++  return PeriodicElementSets.resolveElementSet(setId)
++    .map(el => el[1])
++    .sort(() => Math.random() - 0.5);
++}
++
++
+ 
+ function isOnlineRoomActive() {
+   return playMode === "online" && onlineRoom && Boolean(onlineRoom.code);
+@@ -146,6 +182,26 @@
+     : 118;
+ }
+ 
++function getOnlineElementSetId() {
++  const data = getOnlineRoomData();
++  if (data && data.settings && data.settings.elementSetId) {
++    return PeriodicElementSets.normaliseElementSetId(data.settings.elementSetId);
++  }
++  return PeriodicElementSets.normaliseElementSetId(
++    data && data.settings ? data.settings.elementLimit : null
++  );
++}
++
++function getOnlineRequiredCount() {
++  const data = getOnlineRoomData();
++  if (!data || !data.settings) return 0;
++  return Number(data.settings.requiredCount || data.settings.elementLimit || 0);
++}
++
++function isSupportedOnlineRoomVersion(version) {
++  return ["21.5-first36", "21.6-category-games"].includes(version);
++}
++
+ function getOnlineCompletedSymbols() {
+   const game = getOnlineGame();
+   const log = game && typeof game.completedLog === "string"
+@@ -437,12 +493,13 @@
+     const difficultyName = data.settings && data.settings.difficulty
+       ? data.settings.difficulty.charAt(0).toUpperCase() + data.settings.difficulty.slice(1)
+       : "—";
+-    const elementLimit = data.settings && Number(data.settings.elementLimit)
+-      ? Number(data.settings.elementLimit)
+-      : 118;
++    const setId = PeriodicElementSets.normaliseElementSetId(
++      data.settings ? (data.settings.elementSetId || data.settings.elementLimit) : null
++    );
++    const setMeta = setId ? getSetMetaOrNull(setId) : null;
++    const setLabel = setMeta ? setMeta.label : "Unknown element set";
+ 
+-    settingsEl.textContent =
+-      `Game settings: ${difficultyName} • ${elementLimit === 118 ? "All 118" : `First ${elementLimit}`}`;
++    settingsEl.textContent = `Game settings: ${difficultyName} • ${setLabel}`;
+   }
+ 
+   document.getElementById("onlineHostScore").textContent = `${hostStats.score || 0} pts`;
+@@ -997,7 +1054,7 @@
+       return false;
+     }
+ 
+-    if (roomData.version !== "21.5-first36") {
++    if (!isSupportedOnlineRoomVersion(roomData.version)) {
+       clearOnlineSession();
+       return false;
+     }
+@@ -1211,6 +1268,18 @@
+ 
+   onlineRoom.lastData = roomData;
+ 
++  if (
++    roomData &&
++    roomData.version === "21.6-category-games" &&
++    !PeriodicElementSets.normaliseElementSetId(roomData.settings && roomData.settings.elementSetId)
++  ) {
++    applyActiveGameSlots();
++    buildList("game");
++    renderOnlineRoomStatus(roomData);
++    setOnlineTurnFeedback("This room has an invalid element set and cannot be played.", "bad");
++    return;
++  }
++
+   const difficulty = roomData && roomData.settings ? roomData.settings.difficulty : null;
+   if (difficulty && onlineRoom.appliedDifficulty !== difficulty) {
+     onlineRoom.appliedDifficulty = difficulty;
+@@ -1311,12 +1380,12 @@
+   );
+ }
+ 
+-function createInitialOnlineGame(elementLimit) {
+-  return {
++function createInitialOnlineGame(meta, legacy = false) {
++  const game = {
+     status: "waiting",
+     currentTurn: "host",
+-    elementLimit,
+-    elementOrder: shuffledSymbolsForLimit(elementLimit),
++    elementLimit: meta.maxTarget,
++    elementOrder: shuffledSymbolsForSet(meta.id),
+     moveNumber: 0,
+     completedLog: "|",
+     completedCount: 0,
+@@ -1325,6 +1394,13 @@
+       guest: blankOnlineStats()
+     }
+   };
++
++  if (!legacy) {
++    game.elementSetId = meta.id;
++    game.requiredCount = meta.count;
++  }
++
++  return game;
+ }
+ 
+ async function createOnlineRoom() {
+@@ -1335,7 +1411,12 @@
+ 
+   const hostName = cleanPlayerName(document.getElementById("onlineHostNameInput").value, "Player 1");
+   const difficulty = document.getElementById("onlineDifficultySelect").value;
+-  const elementLimit = Number(document.getElementById("onlineElementSetSelect").value) || 20;
++  const selectedSetId = document.getElementById("onlineElementSetSelect").value;
++  const meta = getSetMetaOrNull(selectedSetId);
++  if (!meta) {
++    setOnlineSetupMessage("Unknown element set. Choose a valid set and try again.", true);
++    return;
++  }
+   setOnlineSetupMessage("Creating room…");
+ 
+   try {
+@@ -1345,14 +1426,19 @@
+     const roomRef = api.ref(api.database, `rooms/${code}`);
+ 
+     const roomData = {
+-      version: "21.5-first36",
++      version: "21.6-category-games",
+       status: "waiting",
+       createdAt: api.serverTimestamp(),
+       lastActivityAt: api.serverTimestamp(),
+       expiresAt: Date.now() + ONLINE_ROOM_TTL_MS,
+       host: { uid, name: hostName },
+-      settings: { difficulty, elementLimit },
+-      game: createInitialOnlineGame(elementLimit)
++      settings: {
++        difficulty,
++        elementSetId: meta.id,
++        requiredCount: meta.count,
++        elementLimit: meta.maxTarget
++      },
++      game: createInitialOnlineGame(meta)
+     };
+ 
+     await api.set(roomRef, roomData);
+@@ -1397,7 +1483,13 @@
+     await registerOnlinePresence();
+   } catch (error) {
+     console.error(error);
+-    setOnlineSetupMessage(error.message || String(error), true);
++    const message = error && error.message ? error.message : String(error);
++    setOnlineSetupMessage(
++      /permission/i.test(message)
++        ? "Category game could not be created. Check that the v21.6 Firebase elementSets data and rules are deployed."
++        : message,
++      true
++    );
+   }
+ }
+ 
+@@ -1429,8 +1521,8 @@
+ 
+     const existingRoom = roomSnapshot.val();
+     if (!existingRoom.host) throw new Error("This room is invalid because it has no host.");
+-    if (existingRoom.version !== "21.5-first36") {
+-      throw new Error("This room was created by a different development version. Create a new Security 1 room.");
++    if (!isSupportedOnlineRoomVersion(existingRoom.version)) {
++      throw new Error("This room was created by an unsupported version. Ask the host to create a new room.");
+     }
+     if (Number(existingRoom.expiresAt || 0) <= Date.now()) {
+       throw new Error("That room has expired. Ask the host to create a new room.");
+@@ -1570,7 +1662,9 @@
+     return;
+   }
+ 
+-  if (slot.classList.contains("inactive-game-slot") || slot.dataset.locked === "true") return;
++  if (slot.classList.contains("inactive-game-slot") || slot.classList.contains("multiplayer-inactive") || slot.dataset.locked === "true") return;
++  if (!isElementPlayable(slot.dataset.answer)) return;
++  if (!isElementPlayable(symbol)) return;
+   if (getOnlineCompleted()[symbol]) return;
+   if (!getPlayableElements().some(el => el[1] === symbol)) return;
+ 
+@@ -1590,7 +1684,7 @@
+     const targetNumber = Number(slot.dataset.number);
+     const localElement = getElement(symbol);
+     const isCorrect = Boolean(localElement && Number(localElement[0]) === targetNumber);
+-    const elementLimit = getOnlineElementLimit();
++    const requiredCount = getOnlineRequiredCount();
+ 
+     const result = await api.runTransaction(gameRef, currentGame => {
+       if (!currentGame || currentGame.status !== "playing") return;
+@@ -1644,7 +1738,7 @@
+         at: Date.now()
+       };
+ 
+-      if (isCorrect && Number(currentGame.completedCount || 0) >= elementLimit) {
++      if (isCorrect && Number(currentGame.completedCount || 0) >= requiredCount) {
+         currentGame.status = "finished";
+         currentGame.finishedAt = Date.now();
+ 
+@@ -1724,14 +1818,12 @@
+       ? data.settings.difficulty
+       : "beginner";
+ 
+-  const elementLimit =
+-    data.settings && Number(data.settings.elementLimit)
+-      ? String(Number(data.settings.elementLimit))
+-      : "20";
++  const elementSetId = PeriodicElementSets.normaliseElementSetId(
++    data.settings ? (data.settings.elementSetId || data.settings.elementLimit) : null
++  ) || "first20";
+ 
+   document.getElementById("onlineRematchDifficultySelect").value = difficulty;
+-  document.getElementById("onlineRematchElementSetSelect").value =
+-    ["20", "36", "118"].includes(elementLimit) ? elementLimit : "20";
++  document.getElementById("onlineRematchElementSetSelect").value = elementSetId;
+ 
+   setOnlineRematchSetupMessage("");
+ 
+@@ -1766,8 +1858,21 @@
+   const difficulty =
+     document.getElementById("onlineRematchDifficultySelect").value;
+ 
+-  const elementLimit =
+-    Number(document.getElementById("onlineRematchElementSetSelect").value) || 20;
++  const selectedSetId = document.getElementById("onlineRematchElementSetSelect").value;
++  const meta = getSetMetaOrNull(selectedSetId);
++  if (!meta) {
++    setOnlineRematchSetupMessage("Unknown element set.", true);
++    return;
++  }
++
++  const legacyRoom = data.version !== "21.6-category-games";
++  if (legacyRoom && !["first20", "first36", "all118"].includes(meta.id)) {
++    setOnlineRematchSetupMessage(
++      "Category rematches need a v21.6 room. Leave this room and create a new one.",
++      true
++    );
++    return;
++  }
+ 
+   setOnlineRematchSetupMessage("Starting rematch…");
+ 
+@@ -1786,12 +1891,17 @@
+ 
+     // The v21.4 rules permit the host to update rematch settings only
+     // after the previous game has finished.
+-    await api.set(settingsRef, {
+-      difficulty,
+-      elementLimit
+-    });
++    await api.set(settingsRef, legacyRoom
++      ? { difficulty, elementLimit: meta.maxTarget }
++      : {
++          difficulty,
++          elementSetId: meta.id,
++          requiredCount: meta.count,
++          elementLimit: meta.maxTarget
++        }
++    );
+ 
+-    const newGame = createInitialOnlineGame(elementLimit);
++    const newGame = createInitialOnlineGame(meta, legacyRoom);
+     newGame.status = "playing";
+ 
+     await api.set(gameRef, newGame);
+@@ -1905,12 +2015,13 @@
+   document.getElementById("onlineDifficultySelect").value =
+     document.getElementById("modeSelect").value;
+ 
+-  const defaultSet = modeConfig.multiplayer && modeConfig.multiplayer.defaultElementSet
+-    ? String(modeConfig.multiplayer.defaultElementSet)
+-    : "20";
++  const defaultSet = PeriodicElementSets.normaliseElementSetId(
++    modeConfig.multiplayer && modeConfig.multiplayer.defaultElementSet
++      ? modeConfig.multiplayer.defaultElementSet
++      : "first20"
++  ) || "first20";
+ 
+-  document.getElementById("onlineElementSetSelect").value =
+-    ["20", "36", "118"].includes(defaultSet) ? defaultSet : "20";
++  document.getElementById("onlineElementSetSelect").value = defaultSet;
+ 
+   const code = normaliseRoomCode(inviteCode);
+   document.getElementById("onlineRoomCodeInput").value =
+@@ -1943,11 +2054,17 @@
+ 
+ function getPlayableElements() {
+   if (isLocalMultiplayerActive()) {
+-    return elements.filter(el => el[0] <= localGame.elementLimit);
++    return PeriodicElementSets.resolveElementSet(localGame.elementSetId);
+   }
+ 
+   if (isOnlineRoomActive()) {
+-    return elements.filter(el => el[0] <= getOnlineElementLimit());
++    const id = getActiveElementSetId();
++    if (!id) return [];
++    try {
++      return PeriodicElementSets.resolveElementSet(id);
++    } catch (error) {
++      return [];
++    }
+   }
+ 
+   return elements;
+@@ -2055,15 +2172,11 @@
+   const onlineActive = isOnlineRoomActive();
+   const active = localActive || onlineActive;
+ 
+-  const limit = localActive
+-    ? localGame.elementLimit
+-    : (onlineActive ? getOnlineElementLimit() : 118);
+-
+   document.querySelectorAll(".slot").forEach(slot => {
+-    const number = Number(slot.dataset.number);
+-    const inactive = active && number > limit;
++    const inactive = active && !isElementPlayable(slot.dataset.answer);
+ 
+     slot.classList.toggle("inactive-game-slot", inactive);
++    slot.classList.toggle("multiplayer-inactive", inactive);
+ 
+     if (inactive) {
+       slot.draggable = false;
+@@ -2076,16 +2189,14 @@
+ function clearMultiplayerLocks() {
+   document.querySelectorAll(".slot").forEach(slot => {
+     slot.dataset.locked = "false";
+-    slot.classList.remove("multiplayer-locked", "inactive-game-slot");
++    slot.classList.remove("multiplayer-locked", "inactive-game-slot", "multiplayer-inactive");
+     slot.draggable = true;
+   });
+ }
+ 
+ function shuffledSymbolsForLimit(limit) {
+-  return elements
+-    .filter(el => el[0] <= limit)
+-    .map(el => el[1])
+-    .sort(() => Math.random() - 0.5);
++  const id = PeriodicElementSets.normaliseElementSetId(limit);
++  return shuffledSymbolsForSet(id || "all118");
+ }
+ 
+ function resetLocalGameState() {
+@@ -2094,7 +2205,7 @@
+   localGame.currentPlayer = 0;
+   localGame.processing = false;
+   localGame.completedSymbols = [];
+-  localGame.elementOrder = shuffledSymbolsForLimit(localGame.elementLimit);
++  localGame.elementOrder = shuffledSymbolsForSet(localGame.elementSetId);
+ 
+   localGame.players.forEach(player => {
+     player.score = 0;
+@@ -2119,7 +2230,8 @@
+   const player1 = document.getElementById("player1Input").value.trim() || "Player 1";
+   const player2 = document.getElementById("player2Input").value.trim() || "Player 2";
+   const difficulty = document.getElementById("localDifficultySelect").value;
+-  const elementLimit = Number(document.getElementById("localElementSetSelect").value) || 20;
++  const selectedSetId = document.getElementById("localElementSetSelect").value;
++  const meta = PeriodicElementSets.getElementSetMeta(selectedSetId);
+ 
+   document.getElementById("modeSelect").value = difficulty;
+   setMode(difficulty);
+@@ -2127,12 +2239,14 @@
+   playMode = "local";
+   localGame = {
+     status: "playing",
+-    elementLimit,
++    elementSetId: meta.id,
++    requiredCount: meta.count,
++    elementLimit: meta.maxTarget,
+     difficulty,
+     currentPlayer: 0,
+     processing: false,
+     completedSymbols: [],
+-    elementOrder: shuffledSymbolsForLimit(elementLimit),
++    elementOrder: shuffledSymbolsForSet(meta.id),
+     players: [
+       { name: player1, score: 0, streak: 0, bestStreak: 0, correct: 0, attempts: 0 },
+       { name: player2, score: 0, streak: 0, bestStreak: 0, correct: 0, attempts: 0 }
+@@ -2213,12 +2327,13 @@
+     document.getElementById("localDifficultySelect").value =
+       document.getElementById("modeSelect").value;
+ 
+-    const defaultSet = modeConfig.multiplayer && modeConfig.multiplayer.defaultElementSet
+-      ? String(modeConfig.multiplayer.defaultElementSet)
+-      : "20";
++    const defaultSet = PeriodicElementSets.normaliseElementSetId(
++      modeConfig.multiplayer && modeConfig.multiplayer.defaultElementSet
++        ? modeConfig.multiplayer.defaultElementSet
++        : "first20"
++    ) || "first20";
+ 
+-    document.getElementById("localElementSetSelect").value =
+-      ["20", "36", "118"].includes(defaultSet) ? defaultSet : "20";
++    document.getElementById("localElementSetSelect").value = defaultSet;
+ 
+     dialog.showModal();
+     return;
+@@ -2280,7 +2395,8 @@
+ function handleMultiplayerDrop(slot, symbol) {
+   if (!isLocalMultiplayerActive() || localGame.processing) return;
+   if (!symbol) return;
+-  if (slot.classList.contains("inactive-game-slot")) return;
++  if (slot.classList.contains("inactive-game-slot") || slot.classList.contains("multiplayer-inactive")) return;
++  if (!isElementPlayable(slot.dataset.answer)) return;
+   if (slot.dataset.locked === "true") return;
+   if (!getPlayableElements().some(el => el[1] === symbol)) return;
+   if (localGame.completedSymbols.includes(symbol)) return;
+@@ -2313,7 +2429,7 @@
+ 
+     window.setTimeout(() => slot.classList.remove("correct"), 650);
+ 
+-    if (localGame.completedSymbols.length >= localGame.elementLimit) {
++    if (localGame.completedSymbols.length >= localGame.requiredCount) {
+       window.setTimeout(finishLocalGame, 700);
+     }
+     return;
+@@ -2346,23 +2462,7 @@
+ }
+ 
+ function getCategory(number, symbol, group, period) {
+-  const noble = ["He","Ne","Ar","Kr","Xe","Rn","Og"];
+-  const halogens = ["F","Cl","Br","I","At","Ts"];
+-  const metalloids = ["B","Si","Ge","As","Sb","Te","Po"];
+-  const nonMetals = ["H","C","N","O","P","S","Se"];
+-  const post = ["Al","Ga","In","Sn","Tl","Pb","Bi","Nh","Fl","Mc","Lv"];
+-
+-  if (noble.includes(symbol)) return "Noble gases";
+-  if (halogens.includes(symbol)) return "Halogens";
+-  if (group === 1 && symbol !== "H") return "Alkali metals";
+-  if (group === 2 && period < 8) return "Alkaline earth metals";
+-  if (period === 8) return "Lanthanides";
+-  if (period === 9) return "Actinides";
+-  if (group >= 3 && group <= 12) return "Transition metals";
+-  if (metalloids.includes(symbol)) return "Metalloids";
+-  if (nonMetals.includes(symbol)) return "Reactive non-metals";
+-  if (post.includes(symbol)) return "Post-transition metals";
+-  return "Other";
++  return PeriodicElementSets.getCategory(number, symbol, group, period);
+ }
+ 
+ function categoryClass(category) {
+@@ -3361,6 +3461,7 @@
+ });
+ 
+ (async function initialise() {
++  populateElementSetSelects();
+   await loadModeConfig();
+   loadLegendDisplay();
+   loadInfoBarVisibility();
