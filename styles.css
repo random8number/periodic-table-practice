@@ -1539,3 +1539,10 @@ body.online-room-mode.online-local-reconnecting .element-list {
     flex-basis: auto;
   }
 }
+
+
+body.local-game-mode .slot.multiplayer-inactive,
+body.online-room-mode .slot.multiplayer-inactive {
+  opacity: 0.35;
+  cursor: default;
+}
