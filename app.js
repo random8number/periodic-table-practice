@@ -70,7 +70,7 @@ let firebaseOnline = {
   user: null
 };
 
-const ONLINE_SESSION_KEY = "periodicTableOnlineSession-v21.4-online-polish";
+const ONLINE_SESSION_KEY = "periodicTableOnlineSession-v21.5-first36";
 
 let onlineRoom = null;
 let onlineRoomUnsubscribe = null;
@@ -997,7 +997,7 @@ async function restoreOnlineSession() {
       return false;
     }
 
-    if (roomData.version !== "21.4-online-polish") {
+    if (roomData.version !== "21.5-first36") {
       clearOnlineSession();
       return false;
     }
@@ -1345,7 +1345,7 @@ async function createOnlineRoom() {
     const roomRef = api.ref(api.database, `rooms/${code}`);
 
     const roomData = {
-      version: "21.4-online-polish",
+      version: "21.5-first36",
       status: "waiting",
       createdAt: api.serverTimestamp(),
       lastActivityAt: api.serverTimestamp(),
@@ -1429,7 +1429,7 @@ async function joinOnlineRoom() {
 
     const existingRoom = roomSnapshot.val();
     if (!existingRoom.host) throw new Error("This room is invalid because it has no host.");
-    if (existingRoom.version !== "21.4-online-polish") {
+    if (existingRoom.version !== "21.5-first36") {
       throw new Error("This room was created by a different development version. Create a new Security 1 room.");
     }
     if (Number(existingRoom.expiresAt || 0) <= Date.now()) {
@@ -1731,7 +1731,7 @@ function openOnlineRematchDialog() {
 
   document.getElementById("onlineRematchDifficultySelect").value = difficulty;
   document.getElementById("onlineRematchElementSetSelect").value =
-    ["20", "118"].includes(elementLimit) ? elementLimit : "20";
+    ["20", "36", "118"].includes(elementLimit) ? elementLimit : "20";
 
   setOnlineRematchSetupMessage("");
 
@@ -1910,7 +1910,7 @@ function openOnlineDialog(inviteCode = "") {
     : "20";
 
   document.getElementById("onlineElementSetSelect").value =
-    ["20", "118"].includes(defaultSet) ? defaultSet : "20";
+    ["20", "36", "118"].includes(defaultSet) ? defaultSet : "20";
 
   const code = normaliseRoomCode(inviteCode);
   document.getElementById("onlineRoomCodeInput").value =
@@ -2218,7 +2218,7 @@ function setPlayMode(mode) {
       : "20";
 
     document.getElementById("localElementSetSelect").value =
-      ["20", "118"].includes(defaultSet) ? defaultSet : "20";
+      ["20", "36", "118"].includes(defaultSet) ? defaultSet : "20";
 
     dialog.showModal();
     return;

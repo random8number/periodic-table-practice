@@ -95,3 +95,13 @@ Connection loss pauses the game rather than causing a forfeit. Player presence i
 Invite URLs carry only the six-character room code (`?room=ABC123`); player identity still comes from Firebase Anonymous Authentication.
 
 After a game finishes, only the authenticated host may reset the game for a rematch. A rematch may change difficulty and element limit, clears all scores/streaks/attempts/completed elements, creates a fresh element order, and retains the same room/players.
+
+
+## v21.5 — First 36
+
+The selectable multiplayer element ranges are now:
+- First 20
+- First 36 (atomic numbers 1–36, H through Kr)
+- All 118
+
+The same range is enforced by the active element list, table positions, Firebase move validation and rematch settings.
