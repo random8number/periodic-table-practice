@@ -1,3 +1,0 @@
-Known-good release checkpoint: v21.6 Category Games
-Live branch at validation: v21.2-online
-Validated by live tests on 2026-08-22.
