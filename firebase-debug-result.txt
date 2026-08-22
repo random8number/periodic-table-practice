@@ -1,3 +1,132 @@
+=== v21.6 local tests ===
+TAP version 13
+# Subtest: Hydrogen remains a reactive non-metal
+ok 1 - Hydrogen remains a reactive non-metal
+  ---
+  duration_ms: 0.593435
+  type: 'test'
+  ...
+# Subtest: La and Ac are in their f-block categories
+ok 2 - La and Ac are in their f-block categories
+  ---
+  duration_ms: 0.333317
+  type: 'test'
+  ...
+# Subtest: corrected category counts are stable
+ok 3 - corrected category counts are stable
+  ---
+  duration_ms: 0.77754
+  type: 'test'
+  ...
+# Subtest: legacy numeric sets are unchanged
+ok 4 - legacy numeric sets are unchanged
+  ---
+  duration_ms: 0.671842
+  type: 'test'
+  ...
+# Subtest: categories partition all 118 elements exactly once
+ok 5 - categories partition all 118 elements exactly once
+  ---
+  duration_ms: 0.603701
+  type: 'test'
+  ...
+# Subtest: unknown element set is rejected
+ok 6 - unknown element set is rejected
+  ---
+  duration_ms: 0.346807
+  type: 'test'
+  ...
+# Subtest: trusted seed matches resolver membership
+ok 7 - trusted seed matches resolver membership
+  ---
+  duration_ms: 1.544534
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12.140886
+TAP version 13
+# Subtest: v21.6 loads element set core before app
+ok 1 - v21.6 loads element set core before app
+  ---
+  duration_ms: 0.827334
+  type: 'test'
+  ...
+# Subtest: all three multiplayer selectors use shared population logic
+ok 2 - all three multiplayer selectors use shared population logic
+  ---
+  duration_ms: 0.137705
+  type: 'test'
+  ...
+# Subtest: multiplayer has an inactive slot guard
+ok 3 - multiplayer has an inactive slot guard
+  ---
+  duration_ms: 0.11421
+  type: 'test'
+  ...
+# Subtest: online category schema has legacy fallback helpers
+ok 4 - online category schema has legacy fallback helpers
+  ---
+  duration_ms: 0.105027
+  type: 'test'
+  ...
+# Subtest: online completion uses required count
+ok 5 - online completion uses required count
+  ---
+  duration_ms: 0.139798
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8.300299
+TAP version 13
+# Subtest: trusted elementSets is client immutable
+ok 1 - trusted elementSets is client immutable
+  ---
+  duration_ms: 0.637641
+  type: 'test'
+  ...
+# Subtest: rules accept both v21.5 and v21.6 room versions
+ok 2 - rules accept both v21.5 and v21.6 room versions
+  ---
+  duration_ms: 0.176393
+  type: 'test'
+  ...
+# Subtest: v21.6 rules validate trusted set id, count and max target
+ok 3 - v21.6 rules validate trusted set id, count and max target
+  ---
+  duration_ms: 0.101842
+  type: 'test'
+  ...
+# Subtest: move validation requires trusted membership
+ok 4 - move validation requires trusted membership
+  ---
+  duration_ms: 0.799582
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8.216504
+
+=== Firebase emulator test ===
 [36m[1mi  emulators:[22m[39m Starting emulators: database
 [36m[1mi  emulators:[22m[39m Detected demo project ID "demo-periodic-table", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
 [33m[1m⚠ [22m[39m It appears you are running in a CI environment. You can avoid downloading the Database Emulator repeatedly by caching the /home/runner/.cache/firebase/emulators directory.
@@ -9,7 +138,7 @@ TAP version 13
 # Subtest: v21.6 host can create a noble-gases room with trusted elementSets data
 ok 1 - v21.6 host can create a noble-gases room with trusted elementSets data
   ---
-  duration_ms: 673.899073
+  duration_ms: 582.892612
   type: 'test'
   ...
 1..1
@@ -20,7 +149,7 @@ ok 1 - v21.6 host can create a noble-gases room with trusted elementSets data
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 903.120374
+# duration_ms 767.161184
 [32m[1m✔ [22m[39m Script exited successfully (code 0)
 [36m[1mi  emulators:[22m[39m Shutting down emulators.
 [36m[1mi  database:[22m[39m Stopping Database Emulator
