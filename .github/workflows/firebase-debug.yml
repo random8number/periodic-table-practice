@@ -1,0 +1,36 @@
+name: Firebase rules debug
+
+on:
+  push:
+    branches:
+      - v21.6.1-firebase-debug
+    paths:
+      - tests/firebase-room-create-emulator.test.mjs
+      - database.rules.v21.6.json
+      - elementSets.seed.json
+      - answers.seed.json
+      - .github/workflows/firebase-debug.yml
+
+permissions:
+  contents: read
+
+jobs:
+  rules-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Firebase emulator test dependencies
+        run: npm install --no-save firebase @firebase/rules-unit-testing firebase-tools
+      - name: Configure Realtime Database emulator
+        run: |
+          cat > firebase.json <<'JSON'
+          {
+            "database": { "rules": "database.rules.v21.6.json" },
+            "emulators": { "database": { "port": 9000 }, "ui": { "enabled": false } }
+          }
+          JSON
+      - name: Reproduce v21.6 room creation
+        run: npx firebase emulators:exec --only database --project demo-periodic-table "node --test tests/firebase-room-create-emulator.test.mjs"
