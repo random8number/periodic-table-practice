@@ -105,3 +105,14 @@ The selectable multiplayer element ranges are now:
 - All 118
 
 The same range is enforced by the active element list, table positions, Firebase move validation and rematch settings.
+
+
+## v21.6 — Category Games
+
+Multiplayer can now use either numeric ranges or one of the ten periodic-table categories. The full table remains visible but slots outside the selected set are inactive.
+
+Category membership is defined by the same classifier used for category colouring. Hydrogen remains a Reactive non-metal; La is classified as a Lanthanide and Ac as an Actinide.
+
+Online rooms store a stable `elementSetId`, trusted `requiredCount`, and `elementLimit`/maximum target metadata. Firebase validates the set metadata against protected `/elementSets` data, validates every played symbol is a member of the chosen set, and still uses protected `/answers` to validate the target position.
+
+The scoring, correct-keeps-turn rule, wrong-passes-turn rule, reconnect grace, invite links, presence and rematch behaviour are unchanged.
