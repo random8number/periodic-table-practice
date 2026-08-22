@@ -5,7 +5,10 @@ on:
     branches:
       - v21.6.1-firebase-debug
     paths:
-      - tests/firebase-room-create-emulator.test.mjs
+      - tests/**
+      - app.js
+      - element-sets.js
+      - index.html
       - database.rules.v21.6.json
       - elementSets.seed.json
       - answers.seed.json
@@ -26,6 +29,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Run v21.6 unit and contract tests
+        shell: bash
+        run: |
+          node tests/element-sets.test.js
+          node tests/ui-contract.test.js
+          node tests/rules-v21.6.test.js
       - name: Install Firebase emulator test dependencies
         run: npm install --no-save firebase @firebase/rules-unit-testing firebase-tools
       - name: Configure Realtime Database emulator
@@ -36,23 +45,32 @@ jobs:
             "emulators": { "database": { "port": 9000 }, "ui": { "enabled": false } }
           }
           JSON
-      - name: Reproduce v21.6 room creation and capture result
+      - name: Run Firebase room-creation verification and capture result
         id: reproduce
         shell: bash
         run: |
           set +e
-          npx firebase emulators:exec --only database --project demo-periodic-table "node --test tests/firebase-room-create-emulator.test.mjs" > firebase-debug-result.txt 2>&1
+          {
+            echo "=== v21.6 local tests ==="
+            node tests/element-sets.test.js
+            node tests/ui-contract.test.js
+            node tests/rules-v21.6.test.js
+            echo ""
+            echo "=== Firebase emulator test ==="
+            npx firebase emulators:exec --only database --project demo-periodic-table "node --test tests/firebase-room-create-emulator.test.mjs"
+          } > firebase-debug-result.txt 2>&1
           rc=$?
           echo "" >> firebase-debug-result.txt
           echo "EXIT_CODE=$rc" >> firebase-debug-result.txt
           cat firebase-debug-result.txt
-          exit 0
+          exit $rc
       - name: Commit diagnostic result
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add firebase-debug-result.txt
           if ! git diff --cached --quiet; then
-            git commit -m "test: capture Firebase rules reproduction"
+            git commit -m "test: capture final v21.6 verification"
             git push origin HEAD:v21.6.1-firebase-debug
           fi
