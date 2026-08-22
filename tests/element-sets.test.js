@@ -41,3 +41,21 @@ test('categories partition all 118 elements exactly once', () => {
 test('unknown element set is rejected', () => {
   assert.throws(() => Sets.getElementSetMeta('made-up-set'), /Unknown element set/);
 });
+
+test('trusted seed matches resolver membership', () => {
+  const seed = Sets.buildElementSetsSeed();
+  const noble = seed['noble-gases'];
+  assert.equal(noble.count, 7);
+  assert.equal(noble.members.He, true);
+  assert.equal(noble.members.Og, true);
+  assert.equal(noble.members.H, undefined);
+  assert.equal(noble.maxTarget, 118);
+
+  for (const option of Sets.ELEMENT_SET_OPTIONS) {
+    const resolved = Sets.resolveElementSet(option.id);
+    const seeded = Object.keys(seed[option.id].members);
+    assert.deepEqual(seeded, resolved.map(el => el[1]));
+    assert.equal(seed[option.id].count, resolved.length);
+    assert.equal(seed[option.id].maxTarget, Math.max(...resolved.map(el => el[0])));
+  }
+});
