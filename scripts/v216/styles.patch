@@ -1,0 +1,13 @@
+--- a/styles.css
++++ b/styles.css
+@@ -1539,3 +1539,10 @@
+     flex-basis: auto;
+   }
+ }
++
++
++body.local-game-mode .slot.multiplayer-inactive,
++body.online-room-mode .slot.multiplayer-inactive {
++  opacity: 0.35;
++  cursor: default;
++}
