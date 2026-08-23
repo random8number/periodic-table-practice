@@ -194,6 +194,12 @@ async function startGameFromSetup() {
   }
 }
 
+async function joinGameFromDialog() {
+  if (isOnlineRoomActive()) await leaveOnlineRoom(true);
+  if (localGame) endLocalMultiplayer(false);
+  await joinOnlineRoom();
+}
+
 function openJoinGameDialog(inviteCode = "") {
   const code = normaliseRoomCode(inviteCode);
   document.getElementById("joinRoomCodeInput").value = code.length === 6 ? code : "";
@@ -3373,7 +3379,7 @@ document.getElementById("newGameDialog").addEventListener("cancel", event => {
 document.getElementById("joinRoomCodeInput").addEventListener("input", event => {
   event.target.value = normaliseRoomCode(event.target.value);
 });
-document.getElementById("confirmJoinGameButton").addEventListener("click", joinOnlineRoom);
+document.getElementById("confirmJoinGameButton").addEventListener("click", joinGameFromDialog);
 document.getElementById("cancelJoinGameButton").addEventListener("click", () => {
   document.getElementById("joinGameDialog").close();
 });

@@ -59,4 +59,13 @@ test('cancelling setup closes dialogs without ending current game', () => {
   assert.match(js, /cancelJoinGameButton/);
   assert.doesNotMatch(js, /cancelNewGameButton[\s\S]{0,180}endLocalMultiplayer/);
   assert.doesNotMatch(js, /cancelNewGameButton[\s\S]{0,180}leaveOnlineRoom/);
+  assert.doesNotMatch(js, /cancelJoinGameButton[\s\S]{0,180}endLocalMultiplayer/);
+  assert.doesNotMatch(js, /cancelJoinGameButton[\s\S]{0,180}leaveOnlineRoom/);
+  assert.doesNotMatch(js, /joinGameDialog"\)\.addEventListener\("cancel"[\s\S]{0,180}endLocalMultiplayer/);
+  assert.doesNotMatch(js, /joinGameDialog"\)\.addEventListener\("cancel"[\s\S]{0,180}leaveOnlineRoom/);
+});
+
+test('confirmed Join Game cleans up an active game before joining', () => {
+  assert.match(js, /async function joinGameFromDialog\(\)[\s\S]{0,500}if \(isOnlineRoomActive\(\)\) await leaveOnlineRoom\(true\);[\s\S]{0,500}if \(localGame\) endLocalMultiplayer\(false\);[\s\S]{0,500}await joinOnlineRoom\(\)/);
+  assert.match(js, /confirmJoinGameButton"\)\.addEventListener\("click", joinGameFromDialog\)/);
 });
