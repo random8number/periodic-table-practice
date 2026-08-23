@@ -1,5 +1,9 @@
 const PeriodicElementSets = window.PeriodicElementSets;
 if (!PeriodicElementSets) throw new Error("element-sets.js failed to load");
+const PeriodicGameSetup = window.PeriodicGameSetup;
+const PeriodicLayoutMetrics = window.PeriodicLayoutMetrics;
+if (!PeriodicGameSetup) throw new Error("game-setup.js failed to load");
+if (!PeriodicLayoutMetrics) throw new Error("layout-metrics.js failed to load");
 const { elements, categoryOrder } = PeriodicElementSets;
 
 let currentSort = "alpha";
@@ -48,6 +52,8 @@ let modeConfig = DEFAULT_MODE_CONFIG;
 
 let playMode = "single";
 let localGame = null;
+let singleGame = PeriodicGameSetup.defaultSingleSetup("beginner");
+singleGame.status = "playing";
 
 let firebaseOnline = {
   ready: false,
@@ -81,7 +87,7 @@ const score = document.getElementById("score");
 
 
 function populateElementSetSelects() {
-  ["localElementSetSelect", "onlineElementSetSelect", "onlineRematchElementSetSelect"].forEach(id => {
+  ["newGameElementSetSelect", "onlineRematchElementSetSelect"].forEach(id => {
     const select = document.getElementById(id);
     if (!select) return;
     select.innerHTML = "";
@@ -92,6 +98,108 @@ function populateElementSetSelects() {
       select.appendChild(element);
     });
   });
+
+  const gameTypeSelect = document.getElementById("newGameGameTypeSelect");
+  gameTypeSelect.innerHTML = "";
+  PeriodicGameSetup.GAME_TYPES.forEach(type => {
+    const element = document.createElement("option");
+    element.value = type.id;
+    element.textContent = type.label;
+    gameTypeSelect.appendChild(element);
+  });
+}
+
+function setNewGameSetupMessage(message, isError = false) {
+  const el = document.getElementById("newGameSetupMessage");
+  el.textContent = message;
+  el.classList.toggle("error", isError);
+}
+
+function setJoinGameSetupMessage(message, isError = false) {
+  const el = document.getElementById("joinGameSetupMessage");
+  el.textContent = message;
+  el.classList.toggle("error", isError);
+}
+
+function getCurrentGameSetup() {
+  if (localGame && ["playing", "finished"].includes(localGame.status)) {
+    return PeriodicGameSetup.normaliseSetup({
+      ...localGame,
+      playMode: "local",
+      gameType: localGame.gameType || "place-elements"
+    });
+  }
+  if (isOnlineRoomActive()) return PeriodicGameSetup.setupFromRoom(getOnlineRoomData());
+  return PeriodicGameSetup.normaliseSetup(singleGame);
+}
+
+function renderNewGameModeFields() {
+  const selected = document.querySelector('input[name="newGamePlayMode"]:checked').value;
+  document.getElementById("newGameSingleFields").hidden = selected !== "single";
+  document.getElementById("newGameLocalFields").hidden = selected !== "local";
+  document.getElementById("newGameOnlineFields").hidden = selected !== "online";
+  document.getElementById("confirmNewGameButton").textContent =
+    selected === "online" ? "Create Room" : "Start Game";
+}
+
+function openNewGameDialog() {
+  const setup = getCurrentGameSetup();
+  document.getElementById("newGameGameTypeSelect").value = setup.gameType;
+  document.getElementById("newGameElementSetSelect").value = setup.elementSetId;
+  document.getElementById("newGameDifficultySelect").value = setup.difficulty;
+  document.querySelector(`input[name="newGamePlayMode"][value="${setup.playMode}"]`).checked = true;
+
+  if (localGame && localGame.players) {
+    document.getElementById("newGamePlayer1Input").value = localGame.players[0].name;
+    document.getElementById("newGamePlayer2Input").value = localGame.players[1].name;
+  }
+
+  const roomData = getOnlineRoomData();
+  if (roomData && roomData.host) {
+    document.getElementById("newGameHostNameInput").value = roomData.host.name || "Player 1";
+  }
+
+  renderNewGameModeFields();
+  setNewGameSetupMessage("");
+  document.getElementById("newGameDialog").showModal();
+}
+
+function readNewGameSetup() {
+  return PeriodicGameSetup.normaliseSetup({
+    playMode: document.querySelector('input[name="newGamePlayMode"]:checked').value,
+    gameType: document.getElementById("newGameGameTypeSelect").value,
+    elementSetId: document.getElementById("newGameElementSetSelect").value,
+    difficulty: document.getElementById("newGameDifficultySelect").value
+  });
+}
+
+async function startGameFromSetup() {
+  let setup;
+  try {
+    setup = readNewGameSetup();
+  } catch (error) {
+    setNewGameSetupMessage(error.message || String(error), true);
+    return;
+  }
+
+  if (isOnlineRoomActive()) await leaveOnlineRoom(true);
+  if (localGame) endLocalMultiplayer(false);
+
+  if (setup.playMode === "online") {
+    await createOnlineRoom(setup);
+  } else if (setup.playMode === "local") {
+    startLocalMultiplayer(setup);
+  } else {
+    startSinglePlayer(setup);
+  }
+}
+
+function openJoinGameDialog(inviteCode = "") {
+  const code = normaliseRoomCode(inviteCode);
+  document.getElementById("joinRoomCodeInput").value = code.length === 6 ? code : "";
+  document.getElementById("joinGamePreview").hidden = true;
+  setJoinGameSetupMessage("");
+  document.getElementById("joinGameDialog").showModal();
 }
 
 function getSetMetaOrNull(value) {
@@ -243,13 +351,6 @@ function onlineRoleName(role, data = getOnlineRoomData()) {
   return data.guest && data.guest.name ? data.guest.name : "Player 2";
 }
 
-function setOnlineSetupMessage(message, isError = false) {
-  const el = document.getElementById("onlineSetupMessage");
-  if (!el) return;
-  el.textContent = message;
-  el.classList.toggle("error", isError);
-}
-
 function setOnlineTurnFeedback(message, type = "", autoResetMs = 0) {
   const el = document.getElementById("onlineTurnFeedback");
   if (!el) return;
@@ -342,9 +443,6 @@ function updateFirebaseLoadStatus() {
     el.textContent = "Connecting to Firebase…";
   }
 
-  const disabled = !firebaseOnline.ready;
-  document.getElementById("createOnlineRoomButton").disabled = disabled;
-  document.getElementById("joinOnlineRoomButton").disabled = disabled;
 }
 
 function setOnlineRoomControls(active) {
@@ -621,32 +719,13 @@ async function copyOnlineInviteLink() {
   }
 }
 
-function showInviteInOnlineDialog(code) {
-  const roomCode = normaliseRoomCode(code);
-  const notice = document.getElementById("onlineInviteNotice");
-  const joinCard = document.getElementById("onlineJoinCard");
-  const input = document.getElementById("onlineRoomCodeInput");
-
-  if (roomCode.length === 6) {
-    input.value = roomCode;
-    notice.textContent = `You've been invited to room ${roomCode}. Enter your name and press Join room.`;
-    notice.hidden = false;
-    joinCard.classList.add("invite-highlight");
-    document.getElementById("playModeSelect").value = "online";
-  } else {
-    notice.textContent = "";
-    notice.hidden = true;
-    joinCard.classList.remove("invite-highlight");
-  }
-}
-
 function maybeOpenOnlineInvite() {
   if (isOnlineRoomActive()) return false;
 
   const code = getInviteRoomCodeFromUrl();
   if (!code) return false;
 
-  openOnlineDialog(code);
+  openJoinGameDialog(code);
   return true;
 }
 
@@ -1085,7 +1164,6 @@ async function restoreOnlineSession() {
     };
 
     playMode = "online";
-    document.getElementById("playModeSelect").value = "online";
 
     document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
     clearMultiplayerLocks();
@@ -1403,21 +1481,20 @@ function createInitialOnlineGame(meta, legacy = false) {
   return game;
 }
 
-async function createOnlineRoom() {
+async function createOnlineRoom(setup) {
   if (!firebaseOnline.ready) {
-    setOnlineSetupMessage("Firebase is not ready yet.", true);
+    setNewGameSetupMessage("Firebase is not ready yet.", true);
     return;
   }
 
-  const hostName = cleanPlayerName(document.getElementById("onlineHostNameInput").value, "Player 1");
-  const difficulty = document.getElementById("onlineDifficultySelect").value;
-  const selectedSetId = document.getElementById("onlineElementSetSelect").value;
-  const meta = getSetMetaOrNull(selectedSetId);
+  const hostName = cleanPlayerName(document.getElementById("newGameHostNameInput").value, "Player 1");
+  const meta = getSetMetaOrNull(setup && setup.elementSetId);
   if (!meta) {
-    setOnlineSetupMessage("Unknown element set. Choose a valid set and try again.", true);
+    setNewGameSetupMessage("Unknown element set. Choose a valid set and try again.", true);
     return;
   }
-  setOnlineSetupMessage("Creating room…");
+  const difficulty = setup.difficulty;
+  setNewGameSetupMessage("Creating room…");
 
   try {
     const api = firebaseOnline.api;
@@ -1460,8 +1537,7 @@ async function createOnlineRoom() {
     };
 
     playMode = "online";
-    document.getElementById("playModeSelect").value = "online";
-    document.getElementById("onlineMultiplayerDialog").close();
+    document.getElementById("newGameDialog").close();
     clearInviteRoomFromUrl();
 
     document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
@@ -1484,7 +1560,7 @@ async function createOnlineRoom() {
   } catch (error) {
     console.error(error);
     const message = error && error.message ? error.message : String(error);
-    setOnlineSetupMessage(
+    setNewGameSetupMessage(
       /permission/i.test(message)
         ? "Category game could not be created. Check that the v21.6 Firebase elementSets data and rules are deployed."
         : message,
@@ -1495,19 +1571,19 @@ async function createOnlineRoom() {
 
 async function joinOnlineRoom() {
   if (!firebaseOnline.ready) {
-    setOnlineSetupMessage("Firebase is not ready yet.", true);
+    setJoinGameSetupMessage("Firebase is not ready yet.", true);
     return;
   }
 
-  const guestName = cleanPlayerName(document.getElementById("onlineGuestNameInput").value, "Player 2");
-  const code = normaliseRoomCode(document.getElementById("onlineRoomCodeInput").value);
+  const guestName = cleanPlayerName(document.getElementById("joinPlayerNameInput").value, "Player 2");
+  const code = normaliseRoomCode(document.getElementById("joinRoomCodeInput").value);
 
   if (code.length !== 6) {
-    setOnlineSetupMessage("Enter the 6-character room code.", true);
+    setJoinGameSetupMessage("Enter the 6-character room code.", true);
     return;
   }
 
-  setOnlineSetupMessage("Joining room…");
+  setJoinGameSetupMessage("Joining room…");
 
   try {
     const api = firebaseOnline.api;
@@ -1577,8 +1653,7 @@ async function joinOnlineRoom() {
     };
 
     playMode = "online";
-    document.getElementById("playModeSelect").value = "online";
-    document.getElementById("onlineMultiplayerDialog").close();
+    document.getElementById("joinGameDialog").close();
     clearInviteRoomFromUrl();
 
     document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
@@ -1591,7 +1666,7 @@ async function joinOnlineRoom() {
     await touchOnlineRoom();
   } catch (error) {
     console.error("Join room failed:", error);
-    setOnlineSetupMessage(error.message || String(error), true);
+    setJoinGameSetupMessage(error.message || String(error), true);
   }
 }
 
@@ -1929,7 +2004,6 @@ async function startOnlineRematch() {
 async function leaveOnlineRoom(removeFromDatabase = true) {
   if (!onlineRoom) {
     playMode = "single";
-    document.getElementById("playModeSelect").value = "single";
     setOnlineRoomControls(false);
     renderOnlineRoomStatus();
     return;
@@ -2002,50 +2076,12 @@ async function leaveOnlineRoom(removeFromDatabase = true) {
   clearMultiplayerLocks();
 
   currentSort = "alpha";
-  document.getElementById("playModeSelect").value = "single";
   setOnlineRoomControls(false);
   applyActiveGameSlots();
   buildList(currentSort);
   renderOnlineRoomStatus();
   updateScore();
   requestAnimationFrame(fitLayoutToViewport);
-}
-
-function openOnlineDialog(inviteCode = "") {
-  document.getElementById("onlineDifficultySelect").value =
-    document.getElementById("modeSelect").value;
-
-  const defaultSet = PeriodicElementSets.normaliseElementSetId(
-    modeConfig.multiplayer && modeConfig.multiplayer.defaultElementSet
-      ? modeConfig.multiplayer.defaultElementSet
-      : "first20"
-  ) || "first20";
-
-  document.getElementById("onlineElementSetSelect").value = defaultSet;
-
-  const code = normaliseRoomCode(inviteCode);
-  document.getElementById("onlineRoomCodeInput").value =
-    code.length === 6 ? code : "";
-
-  showInviteInOnlineDialog(code);
-
-  setOnlineSetupMessage(
-    code.length === 6
-      ? "Invite ready — enter your player name and join."
-      : ""
-  );
-
-  updateFirebaseLoadStatus();
-
-  const dialog = document.getElementById("onlineMultiplayerDialog");
-  if (!dialog.open) dialog.showModal();
-
-  if (code.length === 6) {
-    window.setTimeout(() => {
-      document.getElementById("onlineGuestNameInput").focus();
-      document.getElementById("onlineGuestNameInput").select();
-    }, 50);
-  }
 }
 
 function isLocalMultiplayerActive() {
@@ -2226,15 +2262,28 @@ function resetLocalGameState() {
   setTurnFeedback("Place an element.");
 }
 
-function startLocalMultiplayer() {
-  const player1 = document.getElementById("player1Input").value.trim() || "Player 1";
-  const player2 = document.getElementById("player2Input").value.trim() || "Player 2";
-  const difficulty = document.getElementById("localDifficultySelect").value;
-  const selectedSetId = document.getElementById("localElementSetSelect").value;
-  const meta = PeriodicElementSets.getElementSetMeta(selectedSetId);
+function startSinglePlayer(setup) {
+  singleGame = { ...setup, status: "playing" };
+  playMode = "single";
+  currentSort = "alpha";
+  document.getElementById("modeSelect").value = setup.difficulty;
+  setMode(setup.difficulty);
+  document.getElementById("newGameDialog").close();
+  document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
+  clearMultiplayerLocks();
+  applyActiveGameSlots();
+  buildList(currentSort);
+  updateMultiplayerStatus();
+  updateScore();
+}
 
-  document.getElementById("modeSelect").value = difficulty;
-  setMode(difficulty);
+function startLocalMultiplayer(setup) {
+  const player1 = cleanPlayerName(document.getElementById("newGamePlayer1Input").value, "Player 1");
+  const player2 = cleanPlayerName(document.getElementById("newGamePlayer2Input").value, "Player 2");
+  const meta = PeriodicElementSets.getElementSetMeta(setup.elementSetId);
+
+  document.getElementById("modeSelect").value = setup.difficulty;
+  setMode(setup.difficulty);
 
   playMode = "local";
   localGame = {
@@ -2242,7 +2291,8 @@ function startLocalMultiplayer() {
     elementSetId: meta.id,
     requiredCount: meta.count,
     elementLimit: meta.maxTarget,
-    difficulty,
+    difficulty: setup.difficulty,
+    gameType: setup.gameType,
     currentPlayer: 0,
     processing: false,
     completedSymbols: [],
@@ -2253,8 +2303,7 @@ function startLocalMultiplayer() {
     ]
   };
 
-  document.getElementById("playModeSelect").value = "local";
-  document.getElementById("localMultiplayerDialog").close();
+  document.getElementById("newGameDialog").close();
 
   document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
   clearMultiplayerLocks();
@@ -2282,77 +2331,11 @@ function endLocalMultiplayer(resetTableAfter = true) {
   localGame = null;
   currentSort = "alpha";
 
-  document.getElementById("playModeSelect").value = "single";
   setMultiplayerControls(false);
   applyActiveGameSlots();
   buildList(currentSort);
   updateMultiplayerStatus();
   requestAnimationFrame(fitLayoutToViewport);
-}
-
-function setPlayMode(mode) {
-  if (mode === "single") {
-    if (isLocalMultiplayerActive()) {
-      const leave = window.confirm("End the current local multiplayer game and return to single player?");
-      if (!leave) {
-        document.getElementById("playModeSelect").value = "local";
-        return;
-      }
-      endLocalMultiplayer(true);
-      return;
-    }
-
-    if (isOnlineRoomActive()) {
-      const leave = window.confirm("Leave the current online room and return to single player?");
-      if (!leave) {
-        document.getElementById("playModeSelect").value = "online";
-        return;
-      }
-      leaveOnlineRoom(true);
-      return;
-    }
-
-    playMode = "single";
-    return;
-  }
-
-  if (mode === "local") {
-    if (isOnlineRoomActive()) {
-      document.getElementById("playModeSelect").value = "online";
-      alert("Leave the online room before starting a local multiplayer game.");
-      return;
-    }
-
-    const dialog = document.getElementById("localMultiplayerDialog");
-    document.getElementById("localDifficultySelect").value =
-      document.getElementById("modeSelect").value;
-
-    const defaultSet = PeriodicElementSets.normaliseElementSetId(
-      modeConfig.multiplayer && modeConfig.multiplayer.defaultElementSet
-        ? modeConfig.multiplayer.defaultElementSet
-        : "first20"
-    ) || "first20";
-
-    document.getElementById("localElementSetSelect").value = defaultSet;
-
-    dialog.showModal();
-    return;
-  }
-
-  if (mode === "online") {
-    if (isLocalMultiplayerActive()) {
-      document.getElementById("playModeSelect").value = "local";
-      alert("End the local multiplayer game before opening an online room.");
-      return;
-    }
-
-    if (isOnlineRoomActive()) {
-      document.getElementById("playModeSelect").value = "online";
-      return;
-    }
-
-    openOnlineDialog();
-  }
 }
 
 function finishLocalGame() {
@@ -3371,23 +3354,32 @@ document.getElementById("leaveAfterOnlineGameButton").addEventListener("click", 
   await leaveOnlineRoom(true);
 });
 
-document.getElementById("createOnlineRoomButton").addEventListener("click", createOnlineRoom);
-document.getElementById("joinOnlineRoomButton").addEventListener("click", joinOnlineRoom);
+document.getElementById("newGameButton").addEventListener("click", openNewGameDialog);
+document.getElementById("joinGameButton").addEventListener("click", () => openJoinGameDialog());
 
-document.getElementById("onlineRoomCodeInput").addEventListener("input", event => {
+document.querySelectorAll('input[name="newGamePlayMode"]').forEach(input => {
+  input.addEventListener("change", renderNewGameModeFields);
+});
+
+document.getElementById("confirmNewGameButton").addEventListener("click", startGameFromSetup);
+document.getElementById("cancelNewGameButton").addEventListener("click", () => {
+  document.getElementById("newGameDialog").close();
+});
+document.getElementById("newGameDialog").addEventListener("cancel", event => {
+  event.preventDefault();
+  document.getElementById("newGameDialog").close();
+});
+
+document.getElementById("joinRoomCodeInput").addEventListener("input", event => {
   event.target.value = normaliseRoomCode(event.target.value);
 });
-
-document.getElementById("cancelOnlineGameButton").addEventListener("click", () => {
-  document.getElementById("onlineMultiplayerDialog").close();
-  clearInviteRoomFromUrl();
-  showInviteInOnlineDialog("");
-  document.getElementById("playModeSelect").value = isOnlineRoomActive() ? "online" : "single";
+document.getElementById("confirmJoinGameButton").addEventListener("click", joinOnlineRoom);
+document.getElementById("cancelJoinGameButton").addEventListener("click", () => {
+  document.getElementById("joinGameDialog").close();
 });
-
-document.getElementById("onlineMultiplayerDialog").addEventListener("cancel", event => {
+document.getElementById("joinGameDialog").addEventListener("cancel", event => {
   event.preventDefault();
-  document.getElementById("cancelOnlineGameButton").click();
+  document.getElementById("joinGameDialog").close();
 });
 
 
@@ -3416,19 +3408,6 @@ document.getElementById("leaveOnlineRoomButton").addEventListener("click", () =>
   if (window.confirm("Leave this online room?")) {
     leaveOnlineRoom(true);
   }
-});
-
-document.getElementById("startLocalGameButton").addEventListener("click", startLocalMultiplayer);
-
-document.getElementById("cancelLocalGameButton").addEventListener("click", () => {
-  document.getElementById("localMultiplayerDialog").close();
-  document.getElementById("playModeSelect").value = isLocalMultiplayerActive() ? "local" : "single";
-});
-
-document.getElementById("localMultiplayerDialog").addEventListener("cancel", event => {
-  event.preventDefault();
-  document.getElementById("localMultiplayerDialog").close();
-  document.getElementById("playModeSelect").value = isLocalMultiplayerActive() ? "local" : "single";
 });
 
 document.getElementById("endLocalGameButton").addEventListener("click", () => {
@@ -3470,7 +3449,6 @@ document.getElementById("burgerMenu").addEventListener("toggle", () => {
   buildTable();
   buildLegend();
   buildList(currentSort);
-  document.getElementById("playModeSelect").value = "single";
   updateMultiplayerStatus();
   document.getElementById("modeSelect").value = "beginner";
   setMode("beginner");

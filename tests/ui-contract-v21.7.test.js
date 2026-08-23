@@ -45,3 +45,18 @@ test('game launch actions are independent from hideable answer actions', () => {
   assert.match(html, /class="game-launch-actions"/);
   assert.match(css, /\.game-launch-actions/);
 });
+
+const js = fs.readFileSync('app.js', 'utf8');
+
+test('New Game uses one normalized common setup before dispatch', () => {
+  assert.match(js, /function readNewGameSetup\(/);
+  assert.match(js, /PeriodicGameSetup\.normaliseSetup/);
+  assert.match(js, /async function startGameFromSetup\(/);
+});
+
+test('cancelling setup closes dialogs without ending current game', () => {
+  assert.match(js, /cancelNewGameButton/);
+  assert.match(js, /cancelJoinGameButton/);
+  assert.doesNotMatch(js, /cancelNewGameButton[\s\S]{0,180}endLocalMultiplayer/);
+  assert.doesNotMatch(js, /cancelNewGameButton[\s\S]{0,180}leaveOnlineRoom/);
+});
