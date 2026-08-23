@@ -103,3 +103,14 @@ test('Firebase control gating does not depend on the optional status element', (
   assert.ok(updater.indexOf('const createButton') < statusReturn);
   assert.ok(updater.indexOf('const joinButton') < statusReturn);
 });
+
+test('workspace uses explicit 90-percent element-tile metric', () => {
+  assert.match(js, /PeriodicLayoutMetrics\.calculateWorkspaceMetrics/);
+  assert.match(js, /--element-tile-size/);
+  assert.match(css, /var\(--element-tile-size/);
+});
+
+test('wide app can fill viewport and narrow layout stacks the pool', () => {
+  assert.match(css, /\.app\s*\{[\s\S]*width:\s*100%/);
+  assert.match(css, /@media\s*\(max-width:\s*980px\)[\s\S]*\.main[\s\S]*grid-template-columns:\s*1fr/);
+});

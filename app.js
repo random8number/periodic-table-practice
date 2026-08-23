@@ -2648,24 +2648,24 @@ function makeSlot(el, table, lowerTable = false) {
 function fitLayoutToViewport() {
   const mainLayout = document.getElementById("mainLayout");
   const tablePanel = document.getElementById("tablePanel");
-  const topPanel = document.querySelector(".top-panel");
   const legend = document.getElementById("legend");
   const infoPanel = document.querySelector(".info-panel");
 
-  if (!mainLayout || !tablePanel || window.innerWidth <= 980) {
-    document.documentElement.style.removeProperty("--available-main-height");
-    return;
-  }
+  if (!mainLayout || !tablePanel) return;
 
   const viewportHeight = window.innerHeight;
   const mainTop = mainLayout.getBoundingClientRect().top;
   const bottomPadding = 14;
   const availableMainHeight = Math.max(180, viewportHeight - mainTop - bottomPadding);
 
-  document.documentElement.style.setProperty(
-    "--available-main-height",
-    `${availableMainHeight}px`
-  );
+  if (window.innerWidth <= PeriodicLayoutMetrics.STACK_BREAKPOINT) {
+    document.documentElement.style.removeProperty("--available-main-height");
+  } else {
+    document.documentElement.style.setProperty(
+      "--available-main-height",
+      `${availableMainHeight}px`
+    );
+  }
 
   // Height available for the periodic table itself.
   const panelStyle = getComputedStyle(tablePanel);
@@ -2685,28 +2685,39 @@ function fitLayoutToViewport() {
     availableMainHeight - verticalPadding - legendHeight - infoHeight
   );
 
-  // Width available for the main 18-column table.
   const panelWidth = tablePanel.clientWidth - 32;
-
-  // Table structure is effectively 7 main rows + gap + 2 lower rows.
-  const gap = Math.max(1, Math.min(6, panelWidth / 210));
-  const lowerGap = Math.max(6, Math.min(22, usableHeight * 0.03));
-
-  const cellByWidth = (panelWidth - (17 * gap)) / 18;
-  const cellByHeight = (usableHeight - lowerGap - (7 * gap) - gap) / 9;
-
-  const cellSize = Math.max(14, Math.min(58, cellByWidth, cellByHeight));
-  const lowerLabelWidth = Math.max(38, Math.min(105, cellSize * 1.7));
+  const metrics = PeriodicLayoutMetrics.calculateWorkspaceMetrics({
+    viewportWidth: window.innerWidth,
+    panelWidth,
+    usableHeight
+  });
 
   document.querySelectorAll(".table-grid").forEach(grid => {
-    grid.style.setProperty("--cell-size", `${cellSize}px`);
-    grid.style.setProperty("--cell-gap", `${gap}px`);
-    grid.style.setProperty("--lower-gap", `${lowerGap}px`);
-    grid.style.setProperty("--lower-label-width", `${lowerLabelWidth}px`);
+    grid.style.setProperty("--cell-size", `${metrics.cellSize}px`);
+    grid.style.setProperty("--cell-gap", `${metrics.cellGap}px`);
+    grid.style.setProperty("--lower-gap", `${metrics.lowerGap}px`);
+    grid.style.setProperty("--lower-label-width", `${metrics.lowerLabelWidth}px`);
   });
+
+  document.documentElement.style.setProperty("--element-tile-size", `${metrics.elementTileSize}px`);
+  document.documentElement.style.setProperty("--ui-scale", String(metrics.uiScale));
 }
 
 let splitterDragging = false;
+
+function applyDesktopSidebarPreference() {
+  const mainLayout = document.getElementById("mainLayout");
+  if (!mainLayout || window.innerWidth <= PeriodicLayoutMetrics.STACK_BREAKPOINT) return;
+
+  try {
+    const savedWidth = parseFloat(localStorage.getItem("periodicTableSidebarWidth"));
+    if (!Number.isFinite(savedWidth)) return;
+
+    const maxSidebar = Math.min(520, mainLayout.getBoundingClientRect().width * 0.45);
+    const sidebarWidth = Math.max(220, Math.min(maxSidebar, savedWidth));
+    mainLayout.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
+  } catch (error) {}
+}
 
 function setupPanelSplitter() {
   const splitter = document.getElementById("panelSplitter");
@@ -2755,12 +2766,7 @@ function setupPanelSplitter() {
   splitter.addEventListener("pointerup", stopDragging);
   splitter.addEventListener("pointercancel", stopDragging);
 
-  try {
-    const savedWidth = parseFloat(localStorage.getItem("periodicTableSidebarWidth"));
-    if (Number.isFinite(savedWidth)) {
-      mainLayout.style.setProperty("--sidebar-width", `${savedWidth}px`);
-    }
-  } catch (error) {}
+  applyDesktopSidebarPreference();
 }
 
 function buildTable() {
@@ -3523,6 +3529,7 @@ document.getElementById("returnSingleButton").addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => {
+  applyDesktopSidebarPreference();
   requestAnimationFrame(fitLayoutToViewport);
 });
 

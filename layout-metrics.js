@@ -13,7 +13,9 @@
     const lowerGap = clamp(6, height * 0.03, 22);
     const cellByWidth = (width - (17 * gap)) / 18;
     const cellByHeight = (height - lowerGap - (8 * gap)) / 9;
-    const desktopCell = clamp(14, Math.min(cellByWidth, cellByHeight), 64);
+    const desktopCell = Math.round(
+      clamp(14, Math.min(cellByWidth, cellByHeight), 64) * 4
+    ) / 4;
     const cellSize = stacked ? 48 : desktopCell;
 
     return {

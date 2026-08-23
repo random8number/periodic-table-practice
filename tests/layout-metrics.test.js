@@ -32,3 +32,14 @@ test('desktop cells remain bounded and UI scale remains readable', () => {
   assert.ok(metrics.cellSize >= 14 && metrics.cellSize <= 64);
   assert.ok(metrics.uiScale >= 0.78 && metrics.uiScale <= 1.18);
 });
+
+test('90 percent ratio is exact across representative desktop sizes', () => {
+  for (const input of [
+    { viewportWidth: 1100, panelWidth: 720, usableHeight: 560 },
+    { viewportWidth: 1440, panelWidth: 980, usableHeight: 650 },
+    { viewportWidth: 1920, panelWidth: 1320, usableHeight: 820 }
+  ]) {
+    const metrics = Layout.calculateWorkspaceMetrics(input);
+    assert.equal(metrics.elementTileSize / metrics.cellSize, 0.9);
+  }
+});
