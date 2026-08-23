@@ -70,6 +70,52 @@ test('confirmed Join Game cleans up an active game before joining', () => {
   assert.match(js, /confirmJoinGameButton"\)\.addEventListener\("click", joinGameFromDialog\)/);
 });
 
+test('New Game and Join Game confirmations share one pending guard through cleanup and dispatch', () => {
+  assert.match(js, /let gameSetupOperationPending = false;/);
+
+  const guardStart = js.indexOf('function setGameSetupOperationPending(');
+  const guardEnd = js.indexOf('\nfunction getCurrentGameSetup', guardStart);
+  const guard = js.slice(guardStart, guardEnd);
+  assert.match(guard, /confirmNewGameButton/);
+  assert.match(guard, /confirmJoinGameButton/);
+  assert.match(guard, /\.disabled = pending/);
+
+  for (const name of ['startGameFromSetup', 'joinGameFromDialog']) {
+    const start = js.indexOf(`async function ${name}()`);
+    const end = js.indexOf('\nfunction ', start + 1);
+    const handler = js.slice(start, end);
+    assert.match(handler, /if \(gameSetupOperationPending\) return;/);
+    assert.match(handler, /setGameSetupOperationPending\(true\);/);
+    assert.match(handler, /finally \{\s*setGameSetupOperationPending\(false\);\s*\}/);
+  }
+
+  const firebaseStatusStart = js.indexOf('function updateFirebaseLoadStatus()');
+  const firebaseStatusEnd = js.indexOf('\nfunction setOnlineRoomControls', firebaseStatusStart);
+  assert.match(js.slice(firebaseStatusStart, firebaseStatusEnd), /gameSetupOperationPending/);
+});
+
+test('only a user Single Player difficulty change updates the preserved Single setup', () => {
+  assert.match(html, /id="modeSelect" onchange="setModeFromUser\(this\.value\)"/);
+
+  const userHandlerStart = js.indexOf('function setModeFromUser(mode)');
+  const userHandlerEnd = js.indexOf('\nfunction setMode(', userHandlerStart);
+  const userHandler = js.slice(userHandlerStart, userHandlerEnd);
+  assert.match(userHandler, /if \(playMode === "single"\) \{\s*singleGame\.difficulty = mode;\s*\}/);
+  assert.match(userHandler, /singleGame\.difficulty = mode;[\s\S]*setMode\(mode\);/);
+
+  const localStart = js.indexOf('function startLocalMultiplayer(setup)');
+  const localEnd = js.indexOf('\nfunction ', localStart + 1);
+  const localHandler = js.slice(localStart, localEnd);
+  assert.match(localHandler, /setMode\(setup\.difficulty\);/);
+  assert.doesNotMatch(localHandler, /setModeFromUser/);
+
+  const onlineSnapshotStart = js.indexOf('function applyOnlineRoomSnapshot(roomData)');
+  const onlineSnapshotEnd = js.indexOf('\nfunction ', onlineSnapshotStart + 1);
+  const onlineSnapshotHandler = js.slice(onlineSnapshotStart, onlineSnapshotEnd);
+  assert.match(onlineSnapshotHandler, /setMode\(difficulty\);/);
+  assert.doesNotMatch(onlineSnapshotHandler, /setModeFromUser/);
+});
+
 test('Local and Online starters consume normalized setup instead of deleted setup selects', () => {
   assert.match(js, /function startLocalMultiplayer\(setup\)/);
   assert.match(js, /async function createOnlineRoom\(setup\)/);

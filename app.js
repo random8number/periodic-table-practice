@@ -67,6 +67,7 @@ const ONLINE_SESSION_KEY = "periodicTableOnlineSession-v21.6-category-games";
 
 let onlineRoom = null;
 let joinPreview = null;
+let gameSetupOperationPending = false;
 let onlineRoomUnsubscribe = null;
 let onlineConnectionUnsubscribe = null;
 let onlineFeedbackTimer = null;
@@ -120,6 +121,15 @@ function setJoinGameSetupMessage(message = "", isError = false) {
   const el = document.getElementById("joinGameSetupMessage");
   el.textContent = message;
   el.classList.toggle("error", isError);
+}
+
+function setGameSetupOperationPending(pending) {
+  gameSetupOperationPending = pending;
+  ["confirmNewGameButton", "confirmJoinGameButton"].forEach(id => {
+    const button = document.getElementById(id);
+    if (button) button.disabled = pending;
+  });
+  if (!pending) updateFirebaseLoadStatus();
 }
 
 function getCurrentGameSetup() {
@@ -176,6 +186,8 @@ function readNewGameSetup() {
 }
 
 async function startGameFromSetup() {
+  if (gameSetupOperationPending) return;
+
   let setup;
   try {
     setup = readNewGameSetup();
@@ -184,22 +196,34 @@ async function startGameFromSetup() {
     return;
   }
 
-  if (isOnlineRoomActive()) await leaveOnlineRoom(true);
-  if (localGame) endLocalMultiplayer(false);
+  setGameSetupOperationPending(true);
+  try {
+    if (isOnlineRoomActive()) await leaveOnlineRoom(true);
+    if (localGame) endLocalMultiplayer(false);
 
-  if (setup.playMode === "online") {
-    await createOnlineRoom(setup);
-  } else if (setup.playMode === "local") {
-    startLocalMultiplayer(setup);
-  } else {
-    startSinglePlayer(setup);
+    if (setup.playMode === "online") {
+      await createOnlineRoom(setup);
+    } else if (setup.playMode === "local") {
+      startLocalMultiplayer(setup);
+    } else {
+      startSinglePlayer(setup);
+    }
+  } finally {
+    setGameSetupOperationPending(false);
   }
 }
 
 async function joinGameFromDialog() {
-  if (isOnlineRoomActive()) await leaveOnlineRoom(true);
-  if (localGame) endLocalMultiplayer(false);
-  await joinOnlineRoom();
+  if (gameSetupOperationPending) return;
+
+  setGameSetupOperationPending(true);
+  try {
+    if (isOnlineRoomActive()) await leaveOnlineRoom(true);
+    if (localGame) endLocalMultiplayer(false);
+    await joinOnlineRoom();
+  } finally {
+    setGameSetupOperationPending(false);
+  }
 }
 
 function openJoinGameDialog(inviteCode = "") {
@@ -508,14 +532,16 @@ function updateFirebaseLoadStatus() {
   const selectedMode = document.querySelector('input[name="newGamePlayMode"]:checked');
   const createButton = document.getElementById("confirmNewGameButton");
   if (createButton) {
-    createButton.disabled = Boolean(selectedMode && selectedMode.value === "online" && !firebaseOnline.ready);
+    createButton.disabled = gameSetupOperationPending ||
+      Boolean(selectedMode && selectedMode.value === "online" && !firebaseOnline.ready);
   }
 
   const joinCodeInput = document.getElementById("joinRoomCodeInput");
   const joinButton = document.getElementById("confirmJoinGameButton");
   if (joinButton) {
     const code = normaliseRoomCode(joinCodeInput ? joinCodeInput.value : "");
-    joinButton.disabled = !firebaseOnline.ready || !joinPreview || joinPreview.code !== code;
+    joinButton.disabled = gameSetupOperationPending ||
+      !firebaseOnline.ready || !joinPreview || joinPreview.code !== code;
   }
 
   const el = document.getElementById("firebaseLoadStatus");
@@ -3027,6 +3053,13 @@ function setOptionControlsLocked(locked) {
       group.removeAttribute("title");
     }
   });
+}
+
+function setModeFromUser(mode) {
+  if (playMode === "single") {
+    singleGame.difficulty = mode;
+  }
+  setMode(mode);
 }
 
 function setMode(mode) {
