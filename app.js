@@ -505,9 +505,6 @@ function setDefaultOnlineTurnFeedback() {
 }
 
 function updateFirebaseLoadStatus() {
-  const el = document.getElementById("firebaseLoadStatus");
-  if (!el) return;
-
   const selectedMode = document.querySelector('input[name="newGamePlayMode"]:checked');
   const createButton = document.getElementById("confirmNewGameButton");
   if (createButton) {
@@ -520,6 +517,9 @@ function updateFirebaseLoadStatus() {
     const code = normaliseRoomCode(joinCodeInput ? joinCodeInput.value : "");
     joinButton.disabled = !firebaseOnline.ready || !joinPreview || joinPreview.code !== code;
   }
+
+  const el = document.getElementById("firebaseLoadStatus");
+  if (!el) return;
 
   el.classList.remove("ready", "error");
 

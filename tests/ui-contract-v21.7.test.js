@@ -91,3 +91,15 @@ test('online host still writes v21.6 category-game schema', () => {
   assert.match(js, /requiredCount:\s*meta\.count/);
   assert.match(js, /elementLimit:\s*meta\.maxTarget/);
 });
+
+test('Firebase control gating does not depend on the optional status element', () => {
+  assert.doesNotMatch(html, /id="firebaseLoadStatus"/);
+  const start = js.indexOf('function updateFirebaseLoadStatus()');
+  const end = js.indexOf('\nfunction setOnlineRoomControls', start);
+  const updater = js.slice(start, end);
+  const statusReturn = updater.indexOf('if (!el) return;');
+
+  assert.ok(statusReturn >= 0);
+  assert.ok(updater.indexOf('const createButton') < statusReturn);
+  assert.ok(updater.indexOf('const joinButton') < statusReturn);
+});
