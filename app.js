@@ -221,12 +221,23 @@ function getSetMetaOrNull(value) {
 function getActiveElementSetId() {
   if (isLocalMultiplayerActive()) return localGame.elementSetId;
   if (isOnlineRoomActive()) return getOnlineElementSetId();
-  return "all118";
+  return singleGame.elementSetId;
+}
+
+function getActiveRequiredCount() {
+  if (isLocalMultiplayerActive()) return localGame.requiredCount;
+  if (isOnlineRoomActive()) return getOnlineRequiredCount();
+  return singleGame.requiredCount;
+}
+
+function getActiveElementSetLabel() {
+  const id = getActiveElementSetId();
+  const option = PeriodicElementSets.ELEMENT_SET_OPTIONS.find(item => item.id === id);
+  return option ? option.label : "Elements";
 }
 
 function isElementPlayable(symbol) {
   if (!symbol) return false;
-  if (!isLocalMultiplayerActive() && !isOnlineRoomActive()) return true;
   const id = getActiveElementSetId();
   if (!id) return false;
   try {
@@ -2095,21 +2106,13 @@ function isLocalMultiplayerActive() {
 }
 
 function getPlayableElements() {
-  if (isLocalMultiplayerActive()) {
-    return PeriodicElementSets.resolveElementSet(localGame.elementSetId);
+  const id = getActiveElementSetId();
+  if (!id) return [];
+  try {
+    return PeriodicElementSets.resolveElementSet(id);
+  } catch (error) {
+    return [];
   }
-
-  if (isOnlineRoomActive()) {
-    const id = getActiveElementSetId();
-    if (!id) return [];
-    try {
-      return PeriodicElementSets.resolveElementSet(id);
-    } catch (error) {
-      return [];
-    }
-  }
-
-  return elements;
 }
 
 function getMultiplayerStreakPoints() {
@@ -2212,13 +2215,13 @@ function setMultiplayerControls(active) {
 function applyActiveGameSlots() {
   const localActive = isLocalMultiplayerActive();
   const onlineActive = isOnlineRoomActive();
-  const active = localActive || onlineActive;
+  const multiplayerActive = localActive || onlineActive;
 
   document.querySelectorAll(".slot").forEach(slot => {
-    const inactive = active && !isElementPlayable(slot.dataset.answer);
+    const inactive = !isElementPlayable(slot.dataset.answer);
 
     slot.classList.toggle("inactive-game-slot", inactive);
-    slot.classList.toggle("multiplayer-inactive", inactive);
+    slot.classList.toggle("multiplayer-inactive", multiplayerActive && inactive);
 
     if (inactive) {
       slot.draggable = false;
@@ -2269,18 +2272,21 @@ function resetLocalGameState() {
 }
 
 function startSinglePlayer(setup) {
-  singleGame = { ...setup, status: "playing" };
+  singleGame = { ...PeriodicGameSetup.normaliseSetup(setup), status: "playing" };
   playMode = "single";
-  currentSort = "alpha";
-  document.getElementById("modeSelect").value = setup.difficulty;
-  setMode(setup.difficulty);
-  document.getElementById("newGameDialog").close();
+  localGame = null;
+  document.getElementById("modeSelect").value = singleGame.difficulty;
+  setMode(singleGame.difficulty);
+  setMultiplayerControls(false);
   document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
   clearMultiplayerLocks();
   applyActiveGameSlots();
+  currentSort = "alpha";
   buildList(currentSort);
   updateMultiplayerStatus();
-  updateScore();
+  renderOnlineRoomStatus();
+  document.getElementById("newGameDialog").close();
+  requestAnimationFrame(fitLayoutToViewport);
 }
 
 function startLocalMultiplayer(setup) {
@@ -2811,15 +2817,14 @@ function buildList(sortMode = currentSort) {
     list.appendChild(makeElementTile(el));
   });
 
-  const gameLimit = isLocalMultiplayerActive()
-    ? localGame.elementLimit
-    : (isOnlineRoomActive() ? getOnlineElementLimit() : 118);
+  const setSummary = `${getActiveElementSetLabel()} (${getActiveRequiredCount()})`;
 
   document.getElementById("elementsTitle").textContent =
-    sortMode === "game" ? `Elements (${gameLimit})` :
-    sortMode === "alpha" ? "Elements (A–Z)" :
-    sortMode === "atomic" ? "Elements (Atomic No.)" :
-    sortMode === "category" ? "Elements (Category)" : "Elements (Shuffled)";
+    sortMode === "game" ? `Elements - ${setSummary}` :
+    sortMode === "alpha" ? `Elements - ${setSummary} (A–Z)` :
+    sortMode === "atomic" ? `Elements - ${setSummary} (Atomic No.)` :
+    sortMode === "category" ? `Elements - ${setSummary} (Category)` :
+    `Elements - ${setSummary} (Shuffled)`;
 
   updateScore();
   refreshTooltips();
@@ -2830,7 +2835,7 @@ function dropOnSlot(e) {
   e.preventDefault();
 
   const symbol = e.dataTransfer.getData("text/plain");
-  if (!symbol) return;
+  if (!symbol || !isElementPlayable(this.dataset.answer) || !isElementPlayable(symbol)) return;
 
   if (isOnlineRoomActive()) {
     attemptOnlinePlacement(this, symbol);
@@ -2972,6 +2977,7 @@ function checkAnswers() {
   let wrong = 0;
 
   document.querySelectorAll(".slot").forEach(slot => {
+    if (!isElementPlayable(slot.dataset.answer)) return;
     slot.classList.remove("correct", "wrong");
     if (!slot.dataset.placed) return;
 
@@ -2991,6 +2997,10 @@ function showAnswers() {
   if (isLocalMultiplayerActive() || isOnlineRoomActive()) return;
 
   document.querySelectorAll(".slot").forEach(slot => {
+    if (!isElementPlayable(slot.dataset.answer)) {
+      setSlotContent(slot, "");
+      return;
+    }
     setSlotContent(slot, slot.dataset.answer);
     slot.classList.add("correct");
   });
@@ -3015,6 +3025,7 @@ function hint() {
   if (isLocalMultiplayerActive() || isOnlineRoomActive()) return;
 
   const emptyWrong = [...document.querySelectorAll(".slot")]
+    .filter(slot => isElementPlayable(slot.dataset.answer))
     .filter(slot => slot.dataset.placed !== slot.dataset.answer);
 
   if (emptyWrong.length === 0) return;
@@ -3034,22 +3045,24 @@ function hint() {
 function updateScore(correct = null, wrong = null) {
   if (isLocalMultiplayerActive()) {
     const placed = localGame.completedSymbols.length;
-    score.textContent = `${placed} of ${localGame.elementLimit} completed • ${localGame.elementLimit - placed} remaining`;
+    const required = getActiveRequiredCount();
+    score.textContent = `${placed} of ${required} completed • ${required - placed} remaining`;
     return;
   }
 
   if (isOnlineRoomActive()) {
     const placed = getOnlineCompletedSymbols().length;
-    const limit = getOnlineElementLimit();
-    score.textContent = `${placed} of ${limit} completed • ${Math.max(0, limit - placed)} remaining`;
+    const required = getActiveRequiredCount();
+    score.textContent = `${placed} of ${required} completed • ${Math.max(0, required - placed)} remaining`;
     return;
   }
 
-  const placed = getPlacedSymbols().length;
+  const placed = getPlacedSymbols().filter(symbol => isElementPlayable(symbol)).length;
+  const required = getActiveRequiredCount();
   if (correct === null) {
-    score.textContent = `${placed} of 118 placed`;
+    score.textContent = `${placed} of ${required} placed`;
   } else {
-    score.textContent = `${placed} of 118 placed. Correct: ${correct}. Mistakes: ${wrong}.`;
+    score.textContent = `${placed} of ${required} placed. Correct: ${correct}. Mistakes: ${wrong}.`;
   }
 }
 
