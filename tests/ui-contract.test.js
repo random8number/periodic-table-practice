@@ -11,10 +11,9 @@ test('v21.7 loads element set core before app', () => {
   assert.ok(html.indexOf('element-sets.js') < html.indexOf('app.js'));
 });
 
-test('all three multiplayer selectors use shared population logic', () => {
+test('New Game and rematch element-set selectors use shared population logic', () => {
   assert.match(js, /function populateElementSetSelects\(/);
-  assert.match(js, /localElementSetSelect/);
-  assert.match(js, /onlineElementSetSelect/);
+  assert.match(js, /newGameElementSetSelect/);
   assert.match(js, /onlineRematchElementSetSelect/);
 });
 
