@@ -213,33 +213,33 @@
       <h2>New Game</h2>
       <p>Choose the game settings before starting.</p>
 
-      <div class="dialog-grid">
-        <label>
-          <span>Game type</span>
-          <select id="newGameGameTypeSelect">
-            <option value="place-elements">Place Elements on Table</option>
-          </select>
-        </label>
-        <label>
-          <span>Elements</span>
-          <select id="newGameElementSetSelect"></select>
-        </label>
-        <label>
-          <span>Difficulty</span>
-          <select id="newGameDifficultySelect">
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-            <option value="custom">Custom</option>
-          </select>
-        </label>
-      </div>
-
       <div class="new-game-sections">
         <div class="segmented-control" role="radiogroup" aria-label="Play mode">
           <label><input type="radio" name="newGamePlayMode" value="single" checked> Single player</label>
           <label><input type="radio" name="newGamePlayMode" value="local"> Local 2 player</label>
           <label><input type="radio" name="newGamePlayMode" value="online"> Online 2 player</label>
+        </div>
+
+        <div class="dialog-grid">
+          <label>
+            <span>Game type</span>
+            <select id="newGameGameTypeSelect">
+              <option value="place-elements">Place Elements on Table</option>
+            </select>
+          </label>
+          <label>
+            <span>Elements</span>
+            <select id="newGameElementSetSelect"></select>
+          </label>
+          <label>
+            <span>Difficulty</span>
+            <select id="newGameDifficultySelect">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
         </div>
 
         <div id="newGameSingleFields" class="mode-specific-fields">

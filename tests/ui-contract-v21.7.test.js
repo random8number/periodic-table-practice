@@ -29,6 +29,26 @@ test('New Game dialog has common settings and mode-specific player containers', 
   assert.match(html, /name="newGamePlayMode"[^>]*value="online"/);
 });
 
+test('New Game dialog renders sections in play mode, settings, then player order', () => {
+  const start = html.indexOf('id="newGameDialog"');
+  const end = html.indexOf('</dialog>', start);
+  const newGameMarkup = html.slice(start, end);
+  const orderedMarkers = [
+    'aria-label="Play mode"',
+    'id="newGameGameTypeSelect"',
+    'id="newGameElementSetSelect"',
+    'id="newGameDifficultySelect"',
+    'id="newGameSingleFields"',
+    'id="newGameLocalFields"',
+    'id="newGameOnlineFields"'
+  ];
+  const positions = orderedMarkers.map(marker => newGameMarkup.indexOf(marker));
+  assert.ok(positions.every(position => position >= 0));
+  for (let index = 1; index < positions.length; index++) {
+    assert.ok(positions[index - 1] < positions[index]);
+  }
+});
+
 test('Join Game contains no editable host game settings', () => {
   const start = html.indexOf('id="joinGameDialog"');
   const end = html.indexOf('</dialog>', start);
