@@ -3,15 +3,19 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Periodic Table Practice v21.6-category-games</title>
-<link rel="stylesheet" href="styles.css?v=21.6-category-games">
+<title>Periodic Table Practice v21.7-new-game</title>
+<link rel="stylesheet" href="styles.css?v=21.7-new-game">
 </head>
 <body>
 <div class="app">
   <div class="top-panel">
-    <div class="title-line"><h1>Periodic Table Practice</h1><span class="dev-version">v21.6 Category Games</span></div>
+    <div class="title-line"><h1>Periodic Table Practice</h1><span class="dev-version">v21.7 New Game</span></div>
 
     <div class="toolbar">
+      <div class="game-launch-actions">
+        <button id="newGameButton" type="button" class="primary-action">New Game</button>
+        <button id="joinGameButton" type="button">Join Game</button>
+      </div>
       <div class="top-actions">
         <button id="checkAnswersButton" onclick="checkAnswers()">✓ Check answers</button>
         <button id="hintButton" onclick="hint()">💡 Hint</button>
@@ -23,15 +27,6 @@
       <details class="burger-menu" id="burgerMenu">
         <summary title="Options">☰</summary>
         <div class="burger-popover">
-
-          <div class="menu-section">
-            <span class="tool-label">Play mode</span>
-            <select id="playModeSelect" onchange="setPlayMode(this.value)">
-              <option value="single">Single player</option>
-              <option value="local">Local 2 player</option>
-              <option value="online">Online 2 player</option>
-            </select>
-          </div>
 
           <div class="menu-section" id="sortControlsGroup">
             <span class="tool-label">Sort elements</span>
@@ -213,99 +208,96 @@
     </aside>
   </div>
   
-  <dialog id="localMultiplayerDialog" class="game-dialog">
+  <dialog id="newGameDialog" class="game-dialog">
     <div class="dialog-content">
-      <h2>Local 2 Player</h2>
-      <p>Two players take turns on this computer. A correct answer keeps the turn; a wrong answer passes it.</p>
+      <h2>New Game</h2>
+      <p>Choose the game settings before starting.</p>
 
       <div class="dialog-grid">
         <label>
-          <span>Player 1</span>
-          <input id="player1Input" type="text" maxlength="24" value="Player 1">
+          <span>Game type</span>
+          <select id="newGameGameTypeSelect">
+            <option value="place-elements">Place Elements on Table</option>
+          </select>
         </label>
         <label>
-          <span>Player 2</span>
-          <input id="player2Input" type="text" maxlength="24" value="Player 2">
+          <span>Elements</span>
+          <select id="newGameElementSetSelect"></select>
         </label>
         <label>
           <span>Difficulty</span>
-          <select id="localDifficultySelect">
+          <select id="newGameDifficultySelect">
             <option value="beginner">Beginner</option>
             <option value="intermediate">Intermediate</option>
             <option value="advanced">Advanced</option>
             <option value="custom">Custom</option>
           </select>
         </label>
-        <label>
-          <span>Elements</span>
-          <select id="localElementSetSelect">
-          </select>
-        </label>
       </div>
 
-      <div class="scoring-summary">
-        Correct: keep your turn. Scores per streak: 10, 12, 14, 16, then 18 points. Wrong: 0 points, streak resets and the turn passes.
+      <div class="new-game-sections">
+        <div class="segmented-control" role="radiogroup" aria-label="Play mode">
+          <label><input type="radio" name="newGamePlayMode" value="single" checked> Single player</label>
+          <label><input type="radio" name="newGamePlayMode" value="local"> Local 2 player</label>
+          <label><input type="radio" name="newGamePlayMode" value="online"> Online 2 player</label>
+        </div>
+
+        <div id="newGameSingleFields" class="mode-specific-fields">
+          <p>Practice on your own.</p>
+        </div>
+
+        <div id="newGameLocalFields" class="mode-specific-fields" hidden>
+          <label>
+            <span>Player 1</span>
+            <input id="newGamePlayer1Input" type="text" maxlength="24" value="Player 1">
+          </label>
+          <label>
+            <span>Player 2</span>
+            <input id="newGamePlayer2Input" type="text" maxlength="24" value="Player 2">
+          </label>
+        </div>
+
+        <div id="newGameOnlineFields" class="mode-specific-fields" hidden>
+          <label>
+            <span>Your name</span>
+            <input id="newGameHostNameInput" type="text" maxlength="24" value="Player 1">
+          </label>
+        </div>
       </div>
 
+      <div id="newGameSetupMessage" class="online-setup-message"></div>
       <div class="dialog-actions">
-        <button id="cancelLocalGameButton" type="button">Cancel</button>
-        <button id="startLocalGameButton" type="button" class="primary-action">Start game</button>
+        <button id="cancelNewGameButton" type="button">Cancel</button>
+        <button id="confirmNewGameButton" type="button" class="primary-action">Start game</button>
       </div>
     </div>
   </dialog>
 
-
-  <dialog id="onlineMultiplayerDialog" class="game-dialog online-dialog">
+  <dialog id="joinGameDialog" class="game-dialog">
     <div class="dialog-content">
-      <h2>Online 2 Player</h2>
-      <p>Create a room and invite another player, or join using a room code/invite link. On a phone/tablet, tap an element and then tap its position on the table.</p>
+      <h2>Join Game</h2>
+      <p>Enter the room code from the game host.</p>
 
-      <div id="firebaseLoadStatus" class="firebase-load-status">Connecting to Firebase…</div>
-      <div id="onlineInviteNotice" class="online-invite-notice" hidden></div>
-
-      <div class="online-setup-grid">
-        <section class="online-setup-card">
-          <h3>Host a game</h3>
-          <label>
-            <span>Your name</span>
-            <input id="onlineHostNameInput" type="text" maxlength="24" value="Player 1">
-          </label>
-          <label>
-            <span>Difficulty</span>
-            <select id="onlineDifficultySelect">
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
-              <option value="custom">Custom</option>
-            </select>
-          </label>
-          <label>
-            <span>Elements</span>
-            <select id="onlineElementSetSelect">
-          </select>
-          </label>
-          <button id="createOnlineRoomButton" type="button" class="primary-action">Create room</button>
-        </section>
-
-        <section class="online-setup-card" id="onlineJoinCard">
-          <h3>Join a game</h3>
-          <label>
-            <span>Your name</span>
-            <input id="onlineGuestNameInput" type="text" maxlength="24" value="Player 2">
-          </label>
-          <label>
-            <span>Room code</span>
-            <input id="onlineRoomCodeInput" class="room-code-input" type="text" maxlength="6" autocomplete="off" placeholder="ABC123">
-          </label>
-          <div class="join-spacer"></div>
-          <button id="joinOnlineRoomButton" type="button" class="primary-action">Join room</button>
-        </section>
+      <div class="dialog-grid">
+        <label>
+          <span>Your name</span>
+          <input id="joinPlayerNameInput" type="text" maxlength="24" value="Player 2">
+        </label>
+        <label>
+          <span>Room code</span>
+          <input id="joinRoomCodeInput" class="room-code-input" type="text" maxlength="6" autocomplete="off" placeholder="ABC123">
+        </label>
       </div>
 
-      <div id="onlineSetupMessage" class="online-setup-message"></div>
+      <div id="joinGamePreview" class="join-game-preview" hidden>
+        <div><strong id="joinPreviewHost"></strong></div>
+        <div id="joinPreviewSettings"></div>
+      </div>
 
+      <div id="joinGameSetupMessage" class="online-setup-message"></div>
       <div class="dialog-actions">
-        <button id="cancelOnlineGameButton" type="button">Cancel</button>
+        <button id="cancelJoinGameButton" type="button">Cancel</button>
+        <button id="confirmJoinGameButton" type="button" class="primary-action">Join game</button>
       </div>
     </div>
   </dialog>
@@ -401,7 +393,9 @@
 </div>
 
 <script src="firebase-config.js?v=21.6-category-games"></script>
-<script src="element-sets.js?v=21.6-category-games"></script>
-<script src="app.js?v=21.6-category-games"></script>
+<script src="element-sets.js?v=21.7-new-game"></script>
+<script src="game-setup.js?v=21.7-new-game"></script>
+<script src="layout-metrics.js?v=21.7-new-game"></script>
+<script src="app.js?v=21.7-new-game"></script>
 </body>
 </html>

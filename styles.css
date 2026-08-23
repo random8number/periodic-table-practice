@@ -699,12 +699,19 @@
     overflow-wrap: anywhere;
   }
 
-  .top-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-  }
+.top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.game-launch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
 
   body.compact-actions .top-actions {
     gap: 5px;
@@ -888,6 +895,66 @@ body.multiplayer-processing .slot:not(.multiplayer-locked) {
   background: white;
 }
 
+.segmented-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.segmented-control label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.new-game-sections {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.mode-specific-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.mode-specific-fields label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.mode-specific-fields input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+  background: white;
+}
+
+.mode-specific-fields p {
+  margin: 0;
+}
+
+.join-game-preview {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .scoring-summary {
   margin-top: 14px;
   padding: 10px 12px;
@@ -965,7 +1032,13 @@ body.multiplayer-processing .slot:not(.multiplayer-locked) {
   }
 
   .dialog-grid,
-  .results-grid {
+  .results-grid,
+  .mode-specific-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented-control {
+    display: grid;
     grid-template-columns: 1fr;
   }
 }
