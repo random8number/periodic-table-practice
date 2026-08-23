@@ -66,6 +66,7 @@ let firebaseOnline = {
 const ONLINE_SESSION_KEY = "periodicTableOnlineSession-v21.6-category-games";
 
 let onlineRoom = null;
+let joinPreview = null;
 let onlineRoomUnsubscribe = null;
 let onlineConnectionUnsubscribe = null;
 let onlineFeedbackTimer = null;
@@ -109,13 +110,13 @@ function populateElementSetSelects() {
   });
 }
 
-function setNewGameSetupMessage(message, isError = false) {
+function setNewGameSetupMessage(message = "", isError = false) {
   const el = document.getElementById("newGameSetupMessage");
   el.textContent = message;
   el.classList.toggle("error", isError);
 }
 
-function setJoinGameSetupMessage(message, isError = false) {
+function setJoinGameSetupMessage(message = "", isError = false) {
   const el = document.getElementById("joinGameSetupMessage");
   el.textContent = message;
   el.classList.toggle("error", isError);
@@ -140,6 +141,7 @@ function renderNewGameModeFields() {
   document.getElementById("newGameOnlineFields").hidden = selected !== "online";
   document.getElementById("confirmNewGameButton").textContent =
     selected === "online" ? "Create Room" : "Start Game";
+  updateFirebaseLoadStatus();
 }
 
 function openNewGameDialog() {
@@ -203,9 +205,70 @@ async function joinGameFromDialog() {
 function openJoinGameDialog(inviteCode = "") {
   const code = normaliseRoomCode(inviteCode);
   document.getElementById("joinRoomCodeInput").value = code.length === 6 ? code : "";
+  joinPreview = null;
   document.getElementById("joinGamePreview").hidden = true;
   setJoinGameSetupMessage("");
   document.getElementById("joinGameDialog").showModal();
+  updateFirebaseLoadStatus();
+  if (code.length === 6) void previewJoinRoom(code);
+}
+
+function validateJoinRoomData(roomData) {
+  if (!roomData) throw new Error("Room not found. Check the code and try again.");
+  if (!roomData.host || !roomData.host.uid || !roomData.host.name) {
+    throw new Error("This room is invalid because it has no host.");
+  }
+  if (!isSupportedOnlineRoomVersion(roomData.version)) {
+    throw new Error("This room was created by an unsupported version. Ask the host to create a new room.");
+  }
+  if (Number(roomData.expiresAt || 0) <= Date.now()) {
+    throw new Error("That room has expired. Ask the host to create a new room.");
+  }
+  if (roomData.game && roomData.game.status === "finished") {
+    throw new Error("That game has already finished.");
+  }
+}
+
+async function previewJoinRoom(code) {
+  const normalisedCode = normaliseRoomCode(code);
+  joinPreview = null;
+  document.getElementById("joinGamePreview").hidden = true;
+  updateFirebaseLoadStatus();
+
+  if (normalisedCode.length !== 6) {
+    if (normalisedCode) setJoinGameSetupMessage("Enter the 6-character room code.", true);
+    return;
+  }
+  if (!firebaseOnline.ready) {
+    setJoinGameSetupMessage("Firebase is not ready yet.", true);
+    return;
+  }
+
+  setJoinGameSetupMessage("Loading room preview…");
+
+  try {
+    const api = firebaseOnline.api;
+    const snapshot = await api.get(api.ref(api.database, `rooms/${normalisedCode}`));
+    if (normaliseRoomCode(document.getElementById("joinRoomCodeInput").value) !== normalisedCode) return;
+    if (!snapshot.exists()) throw new Error("Room not found. Check the code and try again.");
+
+    const roomData = snapshot.val();
+    validateJoinRoomData(roomData);
+    const setup = PeriodicGameSetup.setupFromRoom(roomData);
+    const option = PeriodicElementSets.ELEMENT_SET_OPTIONS.find(x => x.id === setup.elementSetId);
+    document.getElementById("joinPreviewHost").textContent = `Host: ${roomData.host.name}`;
+    document.getElementById("joinPreviewSettings").textContent =
+      `Place Elements on Table • ${option ? option.label : setup.elementSetId} • ${setup.difficulty}`;
+    document.getElementById("joinGamePreview").hidden = false;
+    joinPreview = { code: normalisedCode, roomData };
+    setJoinGameSetupMessage("");
+  } catch (error) {
+    if (normaliseRoomCode(document.getElementById("joinRoomCodeInput").value) === normalisedCode) {
+      setJoinGameSetupMessage(error.message || String(error), true);
+    }
+  }
+
+  updateFirebaseLoadStatus();
 }
 
 function getSetMetaOrNull(value) {
@@ -445,6 +508,19 @@ function updateFirebaseLoadStatus() {
   const el = document.getElementById("firebaseLoadStatus");
   if (!el) return;
 
+  const selectedMode = document.querySelector('input[name="newGamePlayMode"]:checked');
+  const createButton = document.getElementById("confirmNewGameButton");
+  if (createButton) {
+    createButton.disabled = Boolean(selectedMode && selectedMode.value === "online" && !firebaseOnline.ready);
+  }
+
+  const joinCodeInput = document.getElementById("joinRoomCodeInput");
+  const joinButton = document.getElementById("confirmJoinGameButton");
+  if (joinButton) {
+    const code = normaliseRoomCode(joinCodeInput ? joinCodeInput.value : "");
+    joinButton.disabled = !firebaseOnline.ready || !joinPreview || joinPreview.code !== code;
+  }
+
   el.classList.remove("ready", "error");
 
   if (firebaseOnline.ready) {
@@ -459,7 +535,6 @@ function updateFirebaseLoadStatus() {
   } else {
     el.textContent = "Connecting to Firebase…";
   }
-
 }
 
 function setOnlineRoomControls(active) {
@@ -1554,7 +1629,6 @@ async function createOnlineRoom(setup) {
     };
 
     playMode = "online";
-    document.getElementById("newGameDialog").close();
     clearInviteRoomFromUrl();
 
     document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
@@ -1563,6 +1637,7 @@ async function createOnlineRoom(setup) {
     applyOnlineRoomSnapshot(serverRoom);
     listenToOnlineRoom();
     saveOnlineSession();
+    document.getElementById("newGameDialog").close();
 
     try {
       await api.set(
@@ -1613,17 +1688,8 @@ async function joinOnlineRoom() {
     if (!roomSnapshot.exists()) throw new Error("Room not found. Check the code and try again.");
 
     const existingRoom = roomSnapshot.val();
-    if (!existingRoom.host) throw new Error("This room is invalid because it has no host.");
-    if (!isSupportedOnlineRoomVersion(existingRoom.version)) {
-      throw new Error("This room was created by an unsupported version. Ask the host to create a new room.");
-    }
-    if (Number(existingRoom.expiresAt || 0) <= Date.now()) {
-      throw new Error("That room has expired. Ask the host to create a new room.");
-    }
-
-    if (existingRoom.game && existingRoom.game.status === "finished") {
-      throw new Error("That game has already finished.");
-    }
+    validateJoinRoomData(existingRoom);
+    PeriodicGameSetup.setupFromRoom(existingRoom);
 
     const guestResult = await api.runTransaction(guestRef, currentGuest => {
       if (currentGuest === null) return { uid, name: guestName };
@@ -1670,7 +1736,6 @@ async function joinOnlineRoom() {
     };
 
     playMode = "online";
-    document.getElementById("joinGameDialog").close();
     clearInviteRoomFromUrl();
 
     document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
@@ -1679,6 +1744,8 @@ async function joinOnlineRoom() {
     applyOnlineRoomSnapshot(roomData);
     listenToOnlineRoom();
     saveOnlineSession();
+    joinPreview = null;
+    document.getElementById("joinGameDialog").close();
     await registerOnlinePresence();
     await touchOnlineRoom();
   } catch (error) {
@@ -2315,8 +2382,6 @@ function startLocalMultiplayer(setup) {
     ]
   };
 
-  document.getElementById("newGameDialog").close();
-
   document.querySelectorAll(".slot").forEach(slot => setSlotContent(slot, ""));
   clearMultiplayerLocks();
   applyActiveGameSlots();
@@ -2326,6 +2391,7 @@ function startLocalMultiplayer(setup) {
   setMultiplayerControls(true);
   updateMultiplayerStatus();
   setTurnFeedback("Place an element.");
+  document.getElementById("newGameDialog").close();
   requestAnimationFrame(fitLayoutToViewport);
 }
 
@@ -3390,7 +3456,13 @@ document.getElementById("newGameDialog").addEventListener("cancel", event => {
 });
 
 document.getElementById("joinRoomCodeInput").addEventListener("input", event => {
-  event.target.value = normaliseRoomCode(event.target.value);
+  const code = normaliseRoomCode(event.target.value);
+  event.target.value = code;
+  joinPreview = null;
+  document.getElementById("joinGamePreview").hidden = true;
+  setJoinGameSetupMessage("");
+  updateFirebaseLoadStatus();
+  if (code.length === 6) void previewJoinRoom(code);
 });
 document.getElementById("confirmJoinGameButton").addEventListener("click", joinGameFromDialog);
 document.getElementById("cancelJoinGameButton").addEventListener("click", () => {

@@ -69,3 +69,25 @@ test('confirmed Join Game cleans up an active game before joining', () => {
   assert.match(js, /async function joinGameFromDialog\(\)[\s\S]{0,500}if \(isOnlineRoomActive\(\)\) await leaveOnlineRoom\(true\);[\s\S]{0,500}if \(localGame\) endLocalMultiplayer\(false\);[\s\S]{0,500}await joinOnlineRoom\(\)/);
   assert.match(js, /confirmJoinGameButton"\)\.addEventListener\("click", joinGameFromDialog\)/);
 });
+
+test('Local and Online starters consume normalized setup instead of deleted setup selects', () => {
+  assert.match(js, /function startLocalMultiplayer\(setup\)/);
+  assert.match(js, /async function createOnlineRoom\(setup\)/);
+  assert.doesNotMatch(js, /localDifficultySelect/);
+  assert.doesNotMatch(js, /localElementSetSelect/);
+  assert.doesNotMatch(js, /onlineDifficultySelect/);
+  assert.doesNotMatch(js, /onlineElementSetSelect/);
+});
+
+test('Join Game previews immutable host settings before joining', () => {
+  assert.match(js, /async function previewJoinRoom\(code\)/);
+  assert.match(js, /PeriodicGameSetup\.setupFromRoom/);
+  assert.match(js, /joinPreviewSettings/);
+});
+
+test('online host still writes v21.6 category-game schema', () => {
+  assert.match(js, /version:\s*["']21\.6-category-games["']/);
+  assert.match(js, /elementSetId:\s*meta\.id/);
+  assert.match(js, /requiredCount:\s*meta\.count/);
+  assert.match(js, /elementLimit:\s*meta\.maxTarget/);
+});
