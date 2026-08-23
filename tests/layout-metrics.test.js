@@ -43,3 +43,18 @@ test('90 percent ratio is exact across representative desktop sizes', () => {
     assert.equal(metrics.elementTileSize / metrics.cellSize, 0.9);
   }
 });
+
+test('desktop table metrics fit supplied width and height after quantization', () => {
+  for (const input of [
+    { viewportWidth: 1440, panelWidth: 723, usableHeight: 560 },
+    { viewportWidth: 1440, panelWidth: 1000, usableHeight: 371 },
+    { viewportWidth: 1920, panelWidth: 1320, usableHeight: 820 }
+  ]) {
+    const metrics = Layout.calculateWorkspaceMetrics(input);
+    const tableWidth = (18 * metrics.cellSize) + (17 * metrics.cellGap);
+    const tableHeight = (9 * metrics.cellSize) + metrics.lowerGap + (8 * metrics.cellGap);
+
+    assert.ok(tableWidth <= input.panelWidth, `width ${tableWidth} exceeds ${input.panelWidth}`);
+    assert.ok(tableHeight <= input.usableHeight, `height ${tableHeight} exceeds ${input.usableHeight}`);
+  }
+});
