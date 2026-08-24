@@ -1,8 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 
 const workflowPath = '.github/workflows/firebase-rtdb-emulator.yml';
+const approvedWorkflowSha256 = 'd60c16bd91664b22151dc6075a1550bdf3c4f8692bafa6e9a86230b41b219be5';
 
 function readWorkflow() {
   assert.equal(
@@ -145,6 +147,22 @@ function assertProductionIsolation(workflow) {
   assert.doesNotMatch(workflow, new RegExp(escapeRegExp(productionProjectId)));
 }
 
+function assertWorkflowPolicy(workflow) {
+  const normalizedWorkflow = workflow.replace(/\r\n/g, '\n').trimEnd() + '\n';
+  const workflowSha256 = crypto.createHash('sha256')
+    .update(normalizedWorkflow)
+    .digest('hex');
+
+  assert.equal(
+    workflowSha256,
+    approvedWorkflowSha256,
+    'workflow structure changed outside the approved manual emulator gate'
+  );
+  assertManualOnlyTrigger(workflow);
+  assertApprovedToolInstall(workflow);
+  assertProductionIsolation(workflow);
+}
+
 test('Firebase emulator gate is manually dispatched only', () => {
   assertManualOnlyTrigger(readWorkflow());
 });
@@ -229,4 +247,29 @@ test('production-isolation contract rejects an extra Firebase command', () => {
       '          npx --no-install firebase database:set / --project another-project {}'
   );
   assert.throws(() => assertProductionIsolation(unsafeWorkflow));
+});
+
+test('complete workflow policy rejects YAML and shell execution bypasses', () => {
+  const workflow = readWorkflow();
+  const unsafeWorkflows = [
+    workflow.replace(
+      '  workflow_dispatch:',
+      '  workflow_dispatch:\n  "release":'
+    ),
+    workflow.replace(
+      '      - name: Install emulator test dependencies',
+      '      - name: Install emulator test dependencies\n' +
+        '        shell: bash -c "npm i --no-save left-pad@1.3.0; bash {0}"'
+    ),
+    workflow.replace(
+      'jobs:\n  firebase-rtdb-emulator:',
+      'jobs:\n  "remote-job":\n' +
+        '    uses: another-owner/another-repo/.github/workflows/deploy.yml@main\n' +
+        '  firebase-rtdb-emulator:'
+    )
+  ];
+
+  for (const unsafeWorkflow of unsafeWorkflows) {
+    assert.throws(() => assertWorkflowPolicy(unsafeWorkflow));
+  }
 });
