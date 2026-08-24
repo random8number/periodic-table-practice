@@ -5,6 +5,50 @@ const fs = require('node:fs');
 const html = fs.readFileSync('index.html', 'utf8');
 const css = fs.readFileSync('styles.css', 'utf8');
 
+function mediaBlockBodies(source, condition) {
+  const target = condition.replace(/\s+/g, ' ').trim();
+  const mediaStart = /@media\s*\(([^)]+)\)\s*\{/g;
+  const bodies = [];
+  let match;
+
+  while ((match = mediaStart.exec(source))) {
+    if (match[1].replace(/\s+/g, ' ').trim() !== target) continue;
+
+    const bodyStart = mediaStart.lastIndex;
+    let depth = 1;
+    let index = bodyStart;
+
+    while (index < source.length && depth > 0) {
+      if (source[index] === '{') depth++;
+      if (source[index] === '}') depth--;
+      index++;
+    }
+
+    assert.equal(depth, 0, `unbalanced @media (${condition}) block`);
+    bodies.push(source.slice(bodyStart, index - 1));
+    mediaStart.lastIndex = index;
+  }
+
+  return bodies;
+}
+
+function assertTileFallbackPairs(source) {
+  const firstMedia = source.search(/@media\s*\(/);
+  const defaultCss = source.slice(0, firstMedia);
+  const narrowBlocks = mediaBlockBodies(source, 'max-width: 980px');
+  const narrowCss = narrowBlocks.join('\n');
+  const elementTileRule = source.match(/\.element-tile\s*\{([^}]*)\}/)?.[1] || '';
+
+  assert.match(defaultCss, /--cell-size:\s*52px/);
+  assert.match(defaultCss, /--element-tile-size:\s*49\.4px/);
+  assert.ok(narrowBlocks.length > 0, 'expected at least one max-width: 980px media block');
+  assert.match(narrowCss, /--cell-size:\s*48px/);
+  assert.match(narrowCss, /--element-tile-size:\s*45\.6px/);
+  assert.match(elementTileRule, /width:\s*var\(--element-tile-size/);
+  assert.match(elementTileRule, /height:\s*var\(--element-tile-size/);
+  assert.match(elementTileRule, /aspect-ratio:\s*1\s*\/\s*1/);
+}
+
 test('v21.7 removes Play mode dropdown and exposes New Game / Join Game', () => {
   assert.doesNotMatch(html, /id="playModeSelect"/);
   assert.match(html, /id="newGameButton"/);
@@ -180,9 +224,16 @@ test('workspace uses explicit 95-percent element-tile metric', () => {
   assert.match(css, /var\(--element-tile-size/);
 });
 
-test('narrow 48px table fallback keeps loose tiles at the 95-percent 45.6px size', () => {
-  assert.match(css, /@media\s*\(max-width:\s*980px\)\s*\{[\s\S]*--element-tile-size:\s*45\.6px/);
-  assert.match(css, /\.element-tile\s*\{[\s\S]*aspect-ratio:\s*1\s*\/\s*1/);
+test('CSS fallbacks keep 95-percent loose tiles inside their matching 980px media blocks', () => {
+  assertTileFallbackPairs(css);
+});
+
+test('CSS fallback contract rejects a 45.6px tile value moved outside 980px media blocks', () => {
+  const movedTileFallback = css.replace(
+    '--element-tile-size: 45.6px;',
+    '--element-tile-size: 49.4px;'
+  ) + '\n:root { --element-tile-size: 45.6px; }\n';
+  assert.throws(() => assertTileFallbackPairs(movedTileFallback), /--element-tile-size/);
 });
 
 test('wide app can fill viewport and narrow layout stacks the pool', () => {

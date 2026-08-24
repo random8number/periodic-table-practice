@@ -87,3 +87,24 @@ Result: 7 pass, 1 fail of 8. The table width exceeded the hypothetical side-by-s
 - This round changes only `styles.css`, `layout-metrics.js`, `tests/layout-metrics.test.js`, `tests/ui-contract-v21.7.test.js`, and this report. `app.js` is unchanged in this round.
 - No push, deploy, Firebase schema, rules, configuration, seed, or data changes were made.
 - The Firebase emulator release gate and post-fix manual visual gate remain outstanding.
+
+## Scoped re-review fix round 2
+
+### Finding and test design
+
+The prior narrow fallback assertion started at `@media (max-width: 980px)` but used an unbounded match, allowing a later unrelated `45.6px` to satisfy it. This round changes no production code. The UI contract test now uses balanced-brace parsing to collect only actual `max-width: 980px` media block bodies, checks the default pre-media `52px`/`49.4px` pair, checks the collected narrow `48px`/`45.6px` pair, and bounds tile width, height, and square-aspect assertions to the `.element-tile` rule itself.
+
+### RED and mutation evidence
+
+`& 'C:\Users\Tom B\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --test tests\ui-contract-v21.7.test.js`
+
+Initial RED: 20 pass, 1 fail of 21. The stubbed media collector returned no bodies, so the strengthened fallback-pair assertion failed at `narrowBlocks.length > 0`.
+
+Mutation check: the test replaces the narrow `45.6px` declaration with `49.4px`, then appends `45.6px` outside all 980px media blocks. The same fallback-pair assertion is required to throw, proving the value cannot be satisfied from outside the bounded blocks.
+
+### GREEN verification
+
+- Focused: `node --test tests\ui-contract-v21.7.test.js tests\layout-metrics.test.js` PASS, 30/30.
+- Full non-emulator: `node --test tests\ui-contract.test.js tests\ui-contract-v21.7.test.js tests\single-player-sets.test.js tests\rules-v21.6.test.js tests\layout-metrics.test.js tests\game-setup.test.js tests\element-sets.test.js` PASS, 56/56.
+- Syntax: `node --check app.js` PASS; `node --check layout-metrics.js` PASS.
+- Scope: only `tests/ui-contract-v21.7.test.js` and this report change in this round. No production, Firebase, push, or deploy changes were made.
