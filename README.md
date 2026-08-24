@@ -40,7 +40,7 @@ Local and Online games use the host-owned common settings and the selected set's
 
 ## Responsive table and tiles
 
-The periodic-table cells stay square across supported layouts. Loose element tiles are calculated at 90% of the responsive table-cell size, keeping the tiles visually related to their targets while allowing the pool to fit beside the table on wider screens and below it on narrower screens. Saved splitter widths are constrained so they cannot distort narrow layouts.
+The periodic-table cells stay square across supported layouts. Loose element tiles are calculated at 95% of the responsive table-cell size, keeping the tiles visually related to their targets while allowing the pool to fit beside the table on wider screens and below it on narrower screens. Saved splitter widths are constrained so they cannot distort narrow layouts.
 
 ## Deferred modes
 
@@ -50,4 +50,4 @@ Timed mode, weak-element practice, custom element sets, and quiz modes are inten
 
 `/answers` and `/elementSets` remain protected trusted data. Firebase validates both the selected set and correct atomic-number position; the browser does not receive authority to alter those records.
 
-Historical Firebase seed and deployment instructions remain in `V21_6_SETUP.md`. Keep `v21.6-known-good` as the rollback checkpoint until the v21.7 release candidate has completed manual acceptance testing. Live promotion of `v21.2-online` is deliberately out of scope for this branch.
+Historical Firebase seed and deployment instructions remain in `V21_6_SETUP.md`. Keep `v21.6-known-good` as the rollback checkpoint for v21.7. Release promotion is handled through a reviewed pull request into `v21.2-online` after the acceptance gates pass.
