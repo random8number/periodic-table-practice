@@ -1,13 +1,25 @@
-# Periodic Table Practice v21.6 — Category Games
+# Periodic Table Practice v21.7 - New Game
 
-v21.6 adds secure category-based multiplayer while preserving the known-good v21.5 internet multiplayer behaviour.
+v21.7 introduces a single New Game flow for starting Single Player, Local 2 Player, and Online 2 Player games. The existing Firebase room format remains `21.6-category-games`; this release does not change Firebase rules, trusted seed data, or the online session key.
 
-## Multiplayer element sets
+## Start or join a game
 
-The same selector is used for Local 2 Player, Online room creation and Online Play Again/rematch:
+Use **New Game** to choose the current game type, **Place Elements on Table**, then select Single Player, Local 2 Player, or Online 2 Player.
+
+The common settings are owned by the player starting the game:
+
+- element set
+- difficulty
+- player names where applicable
+
+For an Online 2 Player room, the host chooses the common settings. **Join Game** accepts a room code or invite-link prefill, then shows an immutable preview of the host's game settings before the guest joins. Guests cannot edit the host's settings. Cancelling either dialog leaves the current board unchanged.
+
+## Single Player element sets
+
+Single Player supports the same element sets as multiplayer:
 
 - First 20
-- First 36 — H to Kr
+- First 36 - H to Kr
 - All 118
 - Alkali metals
 - Alkaline earth metals
@@ -20,29 +32,22 @@ The same selector is used for Local 2 Player, Online room creation and Online Pl
 - Lanthanides
 - Actinides
 
-The full periodic table remains visible. Slots outside the selected set are muted and inactive during multiplayer.
+The full periodic table remains visible. When a subset is selected, only its elements are draggable and its corresponding target slots are active. For example, Noble gases contains seven elements, and Lanthanides runs from La through Lu.
 
-## Category classification correction
+## Local and Online 2 Player
 
-Hydrogen remains a **Reactive non-metal**. v21.6 corrects the f-block ordering so **Lanthanum (La) is a Lanthanide** and **Actinium (Ac) is an Actinide**, rather than being picked up by the Group 1 rule.
+Local and Online games use the host-owned common settings and the selected set's actual element count for progress and completion. A correct placement retains the current player's turn; a wrong placement gives no points, resets that player's streak, and passes the turn. Play Again/rematch preserves the current settings unless the host changes them before starting the next game.
 
-Key set counts:
-- Alkali metals: 6 — Li, Na, K, Rb, Cs, Fr
-- Noble gases: 7
-- Lanthanides: 15 — La through Lu
-- Actinides: 15 — Ac through Lr
+## Responsive table and tiles
 
-## Firebase security
+The periodic-table cells stay square across supported layouts. Loose element tiles are calculated at 95% of the responsive table-cell size, keeping the tiles visually related to their targets while allowing the pool to fit beside the table on wider screens and below it on narrower screens. Saved splitter widths are constrained so they cannot distort narrow layouts.
 
-`/answers` is unchanged.
+## Deferred modes
 
-v21.6 adds protected trusted data at `/elementSets`. The browser selects a set, but Firebase independently validates that a submitted symbol belongs to that set and continues to use `/answers` to validate its correct atomic-number position.
+Timed mode, weak-element practice, custom element sets, and quiz modes are intentionally deferred from v21.7. The current supported game type is **Place Elements on Table**.
 
-Deployment requires:
-1. Import `elementSets.seed.json` into the root child `/elementSets`.
-2. Publish `database.rules.v21.6.json`.
-3. Only then promote the v21.6 web files to the live Pages branch.
+## Firebase trusted data and rollback
 
-The v21.6 rules remain compatible with existing v21.5 rooms during the deployment transition.
+`/answers` and `/elementSets` remain protected trusted data. Firebase validates both the selected set and correct atomic-number position; the browser does not receive authority to alter those records.
 
-See `V21_6_SETUP.md` for the exact deployment and public test sequence.
+Historical Firebase seed and deployment instructions remain in `V21_6_SETUP.md`. Keep `v21.6-known-good` as the rollback checkpoint for v21.7. Release promotion is handled through a reviewed pull request into `v21.2-online` after the acceptance gates pass.
