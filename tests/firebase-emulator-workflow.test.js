@@ -222,6 +222,10 @@ test('workflow cannot authenticate to or deploy production Firebase', () => {
   assertProductionIsolation(readWorkflow());
 });
 
+test('complete workflow source matches the approved safety policy', () => {
+  assertWorkflowPolicy(readWorkflow());
+});
+
 test('production-isolation contract rejects OIDC write permission', () => {
   const unsafeWorkflow = readWorkflow().replace(
     '  contents: read',
