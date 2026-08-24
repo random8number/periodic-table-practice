@@ -1816,7 +1816,7 @@ function selectOnlineElement(symbol) {
   updateOnlineInteractionClasses();
   setDefaultOnlineTurnFeedback();
 
-  if (onlineRoom.selectedSymbol && window.innerWidth <= 980) {
+  if (onlineRoom.selectedSymbol && isWorkspaceStacked()) {
     const panel = document.getElementById("tablePanel");
     if (panel) {
       window.setTimeout(() => panel.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -2671,6 +2671,10 @@ function makeSlot(el, table, lowerTable = false) {
 }
 
 
+function isWorkspaceStacked() {
+  return document.body.classList.contains("layout-stacked");
+}
+
 function fitLayoutToViewport() {
   const mainLayout = document.getElementById("mainLayout");
   const tablePanel = document.getElementById("tablePanel");
@@ -2683,15 +2687,6 @@ function fitLayoutToViewport() {
   const mainTop = mainLayout.getBoundingClientRect().top;
   const bottomPadding = 14;
   const availableMainHeight = Math.max(180, viewportHeight - mainTop - bottomPadding);
-
-  if (window.innerWidth <= PeriodicLayoutMetrics.STACK_BREAKPOINT) {
-    document.documentElement.style.removeProperty("--available-main-height");
-  } else {
-    document.documentElement.style.setProperty(
-      "--available-main-height",
-      `${availableMainHeight}px`
-    );
-  }
 
   // Height available for the periodic table itself.
   const panelStyle = getComputedStyle(tablePanel);
@@ -2714,9 +2709,21 @@ function fitLayoutToViewport() {
   const panelWidth = tablePanel.clientWidth - 32;
   const metrics = PeriodicLayoutMetrics.calculateWorkspaceMetrics({
     viewportWidth: window.innerWidth,
+    workspaceWidth: mainLayout.getBoundingClientRect().width,
+    sidebarWidth: parseFloat(getComputedStyle(mainLayout).getPropertyValue("--sidebar-width")),
     panelWidth,
     usableHeight
   });
+
+  document.body.classList.toggle("layout-stacked", metrics.stacked);
+  if (metrics.stacked) {
+    document.documentElement.style.removeProperty("--available-main-height");
+  } else {
+    document.documentElement.style.setProperty(
+      "--available-main-height",
+      `${availableMainHeight}px`
+    );
+  }
 
   document.querySelectorAll(".table-grid").forEach(grid => {
     grid.style.setProperty("--cell-size", `${metrics.cellSize}px`);
@@ -2733,7 +2740,7 @@ let splitterDragging = false;
 
 function applyDesktopSidebarPreference() {
   const mainLayout = document.getElementById("mainLayout");
-  if (!mainLayout || window.innerWidth <= PeriodicLayoutMetrics.STACK_BREAKPOINT) return;
+  if (!mainLayout || isWorkspaceStacked()) return;
 
   try {
     const savedWidth = parseFloat(localStorage.getItem("periodicTableSidebarWidth"));
@@ -2752,7 +2759,7 @@ function setupPanelSplitter() {
   if (!splitter || !mainLayout) return;
 
   splitter.addEventListener("pointerdown", event => {
-    if (window.innerWidth <= 980) return;
+    if (isWorkspaceStacked()) return;
 
     splitterDragging = true;
     splitter.classList.add("dragging");
@@ -2761,7 +2768,7 @@ function setupPanelSplitter() {
   });
 
   splitter.addEventListener("pointermove", event => {
-    if (!splitterDragging || window.innerWidth <= 980) return;
+    if (!splitterDragging || isWorkspaceStacked()) return;
 
     const rect = mainLayout.getBoundingClientRect();
     const pointerFromRight = rect.right - event.clientX;

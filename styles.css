@@ -19,7 +19,7 @@
     --lanth: #f5caf7;
     --actinide: #e9ccff;
     --other: #eeeeee;
-    --element-tile-size: 46.8px;
+    --element-tile-size: 49.4px;
     --ui-scale: 1;
   }
 
@@ -153,6 +153,29 @@
     margin-top: clamp(8px, calc(14px * var(--ui-scale)), 14px);
     align-items: stretch;
     min-height: 0;
+  }
+
+  body.layout-stacked .main {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  body.layout-stacked .splitter {
+    display: none;
+  }
+
+  body.layout-stacked .table-panel,
+  body.layout-stacked .elements-panel {
+    margin: 0;
+  }
+
+  body.layout-stacked .elements-panel {
+    max-height: none;
+  }
+
+  body.layout-stacked .element-list {
+    max-height: min(42vh, 420px);
+    overflow-y: auto;
   }
 
   .splitter {
@@ -344,8 +367,8 @@
 
   .element-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(var(--element-tile-size, 46.8px), var(--element-tile-size, 46.8px)));
-    grid-auto-rows: var(--element-tile-size, 46.8px);
+    grid-template-columns: repeat(auto-fill, minmax(var(--element-tile-size, 49.4px), var(--element-tile-size, 49.4px)));
+    grid-auto-rows: var(--element-tile-size, 49.4px);
     gap: 6px;
     flex: 1 1 auto;
     min-height: 0;
@@ -358,8 +381,8 @@
 
   .element-tile {
     position: relative;
-    width: var(--element-tile-size, 46.8px);
-    height: var(--element-tile-size, 46.8px);
+    width: var(--element-tile-size, 49.4px);
+    height: var(--element-tile-size, 49.4px);
     aspect-ratio: 1 / 1;
     border: 1px solid #aab3c2;
     border-radius: 6px;
@@ -928,6 +951,10 @@ body.multiplayer-processing .slot:not(.multiplayer-locked) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.mode-specific-fields[hidden] {
+  display: none !important;
 }
 
 .mode-specific-fields label {

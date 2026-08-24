@@ -29,6 +29,10 @@ test('New Game dialog has common settings and mode-specific player containers', 
   assert.match(html, /name="newGamePlayMode"[^>]*value="online"/);
 });
 
+test('hidden mode-specific New Game fields cannot be displayed by their component rule', () => {
+  assert.match(css, /\.mode-specific-fields\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
+});
+
 test('New Game dialog renders sections in play mode, settings, then player order', () => {
   const start = html.indexOf('id="newGameDialog"');
   const end = html.indexOf('</dialog>', start);
@@ -170,7 +174,7 @@ test('Firebase control gating does not depend on the optional status element', (
   assert.ok(updater.indexOf('const joinButton') < statusReturn);
 });
 
-test('workspace uses explicit 90-percent element-tile metric', () => {
+test('workspace uses explicit 95-percent element-tile metric', () => {
   assert.match(js, /PeriodicLayoutMetrics\.calculateWorkspaceMetrics/);
   assert.match(js, /--element-tile-size/);
   assert.match(css, /var\(--element-tile-size/);
@@ -179,4 +183,19 @@ test('workspace uses explicit 90-percent element-tile metric', () => {
 test('wide app can fill viewport and narrow layout stacks the pool', () => {
   assert.match(css, /\.app\s*\{[\s\S]*width:\s*100%/);
   assert.match(css, /@media\s*\(max-width:\s*980px\)[\s\S]*\.main[\s\S]*grid-template-columns:\s*1fr/);
+});
+
+test('calculated layout state drives CSS reflow, splitter availability, and narrow scrolling', () => {
+  assert.match(css, /body\.layout-stacked\s+\.main\s*\{[\s\S]*grid-template-columns:\s*1fr/);
+  assert.match(css, /body\.layout-stacked\s+\.splitter\s*\{\s*display:\s*none/);
+  assert.match(css, /body\.layout-stacked\s+\.elements-panel\s*\{[\s\S]*max-height:\s*none/);
+  assert.match(js, /document\.body\.classList\.toggle\("layout-stacked", metrics\.stacked\)/);
+  assert.match(js, /function isWorkspaceStacked\(\)\s*\{[\s\S]*classList\.contains\("layout-stacked"\)/);
+  assert.match(js, /if \(onlineRoom\.selectedSymbol && isWorkspaceStacked\(\)\)/);
+
+  const splitterStart = js.indexOf('function setupPanelSplitter()');
+  const splitterEnd = js.indexOf('\nfunction buildTable', splitterStart);
+  const splitterSetup = js.slice(splitterStart, splitterEnd);
+  assert.match(splitterSetup, /isWorkspaceStacked\(\)/);
+  assert.doesNotMatch(splitterSetup, /window\.innerWidth\s*<=\s*980/);
 });
