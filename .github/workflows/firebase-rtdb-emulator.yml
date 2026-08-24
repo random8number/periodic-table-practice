@@ -1,0 +1,65 @@
+name: Firebase RTDB emulator release gate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firebase-rtdb-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out v21.7 branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Set up Java for the RTDB emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install emulator test dependencies
+        run: >-
+          npm install --no-save --package-lock=false
+          firebase@12.17.1
+          @firebase/rules-unit-testing@5.0.1
+          firebase-tools@15.28.1
+
+      - name: Report tool versions
+        run: |
+          node --version
+          npm --version
+          java -version
+          npx --no-install firebase --version
+          npm ls --depth=0 firebase @firebase/rules-unit-testing firebase-tools
+
+      - name: Configure the local RTDB emulator
+        shell: bash
+        run: |
+          cat > firebase.json <<'JSON'
+          {
+            "database": { "rules": "database.rules.v21.6.json" },
+            "emulators": {
+              "database": { "port": 9000 },
+              "ui": { "enabled": false }
+            }
+          }
+          JSON
+
+      - name: Run Firebase RTDB emulator regression
+        env:
+          FIREBASE_CLI_DISABLE_UPDATE_CHECK: 'true'
+        run: >-
+          npx --no-install firebase emulators:exec
+          --only database
+          --project demo-periodic-table
+          "node --test tests/firebase-room-create-emulator.test.mjs"
