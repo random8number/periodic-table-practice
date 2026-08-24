@@ -54,7 +54,7 @@ test('calculated side-by-side panel stacks above 980px when cells would be under
   });
 
   assert.equal(metrics.sideBySidePanelWidth, 643);
-  assert.ok(metrics.sideBySideCellSize < 40);
+  assert.ok(metrics.sideBySideCellByWidth < 40);
   assert.equal(metrics.stacked, true);
   assert.ok(metrics.cellSize >= 40);
 });
@@ -69,7 +69,21 @@ test('sufficiently wide workspace remains side-by-side with a 40px minimum cell'
   });
 
   assert.equal(metrics.stacked, false);
-  assert.ok(metrics.sideBySideCellSize >= 40);
+  assert.ok(metrics.sideBySideCellByWidth >= 40);
+  assert.ok(metrics.cellSize >= 40);
+});
+
+test('wide but short workspace remains side-by-side with a 40px minimum cell', () => {
+  const metrics = Layout.calculateWorkspaceMetrics({
+    viewportWidth: 1600,
+    workspaceWidth: 1500,
+    sidebarWidth: 310,
+    panelWidth: 1143,
+    usableHeight: 260
+  });
+
+  assert.equal(metrics.stacked, false);
+  assert.ok(metrics.sideBySideCellByWidth >= 40);
   assert.ok(metrics.cellSize >= 40);
 });
 

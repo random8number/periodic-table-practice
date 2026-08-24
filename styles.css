@@ -593,6 +593,10 @@
   }
 
   @media (max-width: 980px) {
+    :root {
+      --element-tile-size: 45.6px;
+    }
+
     .main {
       display: grid;
       grid-template-columns: 1fr;

@@ -31,18 +31,16 @@
     );
     const sideBySideGap = clamp(1, sideBySidePanelWidth / 210, 6);
     const sideBySideCellByWidth = (sideBySidePanelWidth - (17 * sideBySideGap)) / 18;
-    const sideBySideCellByHeight = (height - clamp(6, height * 0.03, 22) - (8 * sideBySideGap)) / 9;
-    const sideBySideCellSize = Math.min(sideBySideCellByWidth, sideBySideCellByHeight);
     const stacked =
       Number(viewportWidth) <= STACK_BREAKPOINT ||
-      sideBySideCellSize < MIN_SIDE_BY_SIDE_CELL_SIZE;
+      sideBySideCellByWidth < MIN_SIDE_BY_SIDE_CELL_SIZE;
     const layoutWidth = stacked ? width : sideBySidePanelWidth;
     const gap = clamp(1, layoutWidth / 210, 6);
     const lowerGap = clamp(6, height * 0.03, 22);
     const cellByWidth = (layoutWidth - (17 * gap)) / 18;
     const cellByHeight = (height - lowerGap - (8 * gap)) / 9;
     const desktopCell = Math.floor(
-      clamp(14, Math.min(cellByWidth, cellByHeight), 64) * 4
+      clamp(MIN_SIDE_BY_SIDE_CELL_SIZE, Math.min(cellByWidth, cellByHeight), 64) * 4
     ) / 4;
     const cellSize = stacked ? 48 : desktopCell;
 
@@ -54,7 +52,7 @@
       lowerLabelWidth: stacked ? 86 : clamp(38, cellSize * 1.7, 110),
       elementTileSize: cellSize * 0.95,
       sideBySidePanelWidth,
-      sideBySideCellSize,
+      sideBySideCellByWidth,
       uiScale: clamp(0.78, cellSize / 52, 1.18)
     };
   }

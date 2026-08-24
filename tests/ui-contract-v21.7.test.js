@@ -180,6 +180,11 @@ test('workspace uses explicit 95-percent element-tile metric', () => {
   assert.match(css, /var\(--element-tile-size/);
 });
 
+test('narrow 48px table fallback keeps loose tiles at the 95-percent 45.6px size', () => {
+  assert.match(css, /@media\s*\(max-width:\s*980px\)\s*\{[\s\S]*--element-tile-size:\s*45\.6px/);
+  assert.match(css, /\.element-tile\s*\{[\s\S]*aspect-ratio:\s*1\s*\/\s*1/);
+});
+
 test('wide app can fill viewport and narrow layout stacks the pool', () => {
   assert.match(css, /\.app\s*\{[\s\S]*width:\s*100%/);
   assert.match(css, /@media\s*\(max-width:\s*980px\)[\s\S]*\.main[\s\S]*grid-template-columns:\s*1fr/);

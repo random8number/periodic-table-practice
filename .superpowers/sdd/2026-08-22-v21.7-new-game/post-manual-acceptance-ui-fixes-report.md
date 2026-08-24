@@ -59,3 +59,31 @@ Result: 7 pass, 1 fail of 8. The table width exceeded the hypothetical side-by-s
 - Self-review found and fixed the stacked-to-wide sizing transition before handoff. No open code findings remain.
 - No push, deploy, Firebase schema, Firebase rules, Firebase configuration, or Firebase seed/data changes were made.
 - The Firebase emulator release gate and a short post-fix manual visual check remain required. This wave does not declare the branch release-ready.
+
+## Scoped re-review fix round 1
+
+### Reviewer findings and fixes
+
+1. At the 980px no-JS CSS fallback, 48px table cells retained the 49.4px wide tile fallback. The narrow media rule now overrides `--element-tile-size` to the exact 95 percent value of `45.6px`; tile width, height, and square aspect ratio remain derived from that property.
+2. The responsive state used the minimum of hypothetical width and height, which stacked wide but short desktops. The stack decision now uses only `sideBySideCellByWidth`; nonstacked desktop metrics floor the downward-quantized cell size at 40px, permit vertical overflow in the short case, and retain the 64px upper bound.
+
+### Fix-round RED evidence
+
+1. Narrow CSS fallback:
+   `& 'C:\Users\Tom B\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --test tests\ui-contract-v21.7.test.js`
+   Result: 19 pass, 1 fail of 20. Expected failure: no `--element-tile-size: 45.6px` occurred inside `@media (max-width: 980px)`.
+2. Width-driven stack decision:
+   `& 'C:\Users\Tom B\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --test tests\layout-metrics.test.js`
+   Result: 6 pass, 3 fail of 9. Expected failures: `sideBySideCellByWidth` was not exposed by the prior metric, and the 1600px-wide/260px-tall fixture returned `stacked: true`.
+
+### Fix-round GREEN evidence
+
+- Focused: `node --test tests\layout-metrics.test.js tests\ui-contract-v21.7.test.js` PASS, 29/29.
+- Full non-emulator: `node --test tests\ui-contract.test.js tests\ui-contract-v21.7.test.js tests\single-player-sets.test.js tests\rules-v21.6.test.js tests\layout-metrics.test.js tests\game-setup.test.js tests\element-sets.test.js` PASS, 55/55.
+- Syntax: `node --check app.js` PASS; `node --check layout-metrics.js` PASS.
+
+### Scope and remaining gates
+
+- This round changes only `styles.css`, `layout-metrics.js`, `tests/layout-metrics.test.js`, `tests/ui-contract-v21.7.test.js`, and this report. `app.js` is unchanged in this round.
+- No push, deploy, Firebase schema, rules, configuration, seed, or data changes were made.
+- The Firebase emulator release gate and post-fix manual visual gate remain outstanding.
