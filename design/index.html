@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Periodic Table Practice — Design Preview</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0c1220;--panel:#172136;--line:#34425f;--text:#f2f5fb;--muted:#aeb9ce;--accent:#6f8cff;--tile:#f0bd60;--placed:#49b38b}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#182641,var(--bg) 48%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+    main{max-width:1440px;margin:auto;padding:28px}h1{margin:0 0 6px;font-size:clamp(24px,3vw,38px)}.intro{margin:0 0 22px;color:var(--muted)}
+    .options{display:grid;grid-template-columns:repeat(3,minmax(260px,1fr));gap:18px}.option{border:2px solid var(--line);border-radius:18px;background:#121b2d;padding:14px;cursor:pointer;transition:.18s transform,.18s border-color,.18s box-shadow}.option:hover{transform:translateY(-2px);border-color:#7183aa}.option.selected{border-color:var(--accent);box-shadow:0 0 0 4px #6f8cff33}.option h2{margin:12px 0 4px}.option p{margin:0;color:var(--muted);line-height:1.4}
+    .phone{aspect-ratio:16/9;border:3px solid #3b4967;border-radius:17px;background:#182238;padding:8px;display:flex;flex-direction:column;gap:6px;overflow:hidden}.top{display:flex;justify-content:space-between;align-items:center;font-size:10px}.score,.tab{background:#273450;border-radius:7px;padding:4px 7px}.tabs{display:flex;gap:3px}.tab.on{background:var(--accent)}
+    .table{flex:1;min-height:0;display:grid;grid-template-columns:repeat(10,1fr);gap:2px}.cell{border:1px solid #667694;border-radius:2px;background:#273550}.cell.done{background:var(--placed);border-color:#89dfc1}.cell.gap{visibility:hidden}
+    .tray{display:flex;gap:4px;overflow:hidden;background:#222e47;border-radius:7px;padding:4px}.tile{flex:0 0 44px;border-radius:5px;background:var(--tile);color:#272117;text-align:center;padding:4px 2px;font-size:8px;font-weight:750}.split{display:grid;grid-template-columns:1fr 31%;gap:5px;flex:1;min-height:0}.list{display:flex;flex-direction:column;gap:3px;overflow:hidden;background:#222e47;border-radius:7px;padding:4px}.list .tile{flex:0 0 auto;text-align:left;width:100%}.hint{text-align:center;color:#94a1ba;font-size:8px}
+    .choice{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--accent);font-weight:800;margin-right:7px}.result{margin:22px 0 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);text-align:center;color:var(--muted)}.result strong{color:var(--text)}
+    @media(max-width:980px){.options{grid-template-columns:1fr}.option{max-width:680px;margin:auto;width:100%}}
+    @media (orientation: landscape) and (max-height:500px){main{padding:14px}.phone{min-height:240px}}
+    @media(orientation:portrait) and (max-width:700px){body:before{content:"For the intended phone view, rotate your phone to landscape.";display:block;background:#f0bd60;color:#211b12;padding:9px;text-align:center;font-weight:700}main{padding:16px}}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Phone layout comparison</h1>
+  <p class="intro">Periodic Table Practice · landscape phone view. Select the layout you prefer.</p>
+  <section class="options">
+    <article class="option" data-choice="A" tabindex="0">
+      <div class="phone"><div class="top"><span class="score">Tom 120</span><b>Your turn · next 12</b><span class="score">P2 98</span></div><div class="tabs"><span class="tab on">TABLE</span><span class="tab">ELEMENTS (18)</span><span class="tab">A–Z</span></div><div class="table" data-grid></div><div class="hint">Choose an element in a separate view, then return automatically</div></div>
+      <h2><span class="choice">A</span>Switch views</h2><p>The table gets the full screen. Choosing a tile temporarily opens the element list.</p>
+    </article>
+    <article class="option" data-choice="B" tabindex="0">
+      <div class="phone"><div class="top"><span class="score">Tom 120</span><b>Your turn · next 12</b><span class="score">P2 98</span></div><div class="tabs"><span class="tab on">TABLE + TRAY</span><span class="tab">A–Z</span><span class="tab">COLOUR</span></div><div class="table" data-grid></div><div class="tray"><span class="tile">Al<br>Aluminium</span><span class="tile">Ar<br>Argon</span><span class="tile">B<br>Boron</span><span class="tile">Ba<br>Barium</span><span class="tile">Be<br>Beryllium</span><span class="tile">Bi<br>Bismuth</span></div><div class="hint">‹ swipe elements sideways ›</div></div>
+      <h2><span class="choice">B</span>Scrolling tray</h2><p>The table remains visible while the elements scroll sideways along the bottom.</p>
+    </article>
+    <article class="option" data-choice="C" tabindex="0">
+      <div class="phone"><div class="top"><span class="score">Tom 120</span><b>Your turn · next 12</b><span class="score">P2 98</span></div><div class="tabs"><span class="tab on">SPLIT</span><span class="tab">A–Z</span><span class="tab">COLOUR</span></div><div class="split"><div class="table" data-grid></div><div class="list"><span class="tile">Al · Aluminium</span><span class="tile">Ar · Argon</span><span class="tile">B · Boron</span><span class="tile">Ba · Barium</span><span class="tile">Be · Beryllium</span></div></div></div>
+      <h2><span class="choice">C</span>Side by side</h2><p>The list is always available, but the periodic-table cells are smaller and harder to tap.</p>
+    </article>
+  </section>
+  <p class="result" id="result"><strong>Recommendation: B</strong> — it avoids repeated switching without shrinking the table too much.</p>
+</main>
+<script>
+  document.querySelectorAll("[data-grid]").forEach((grid,index)=>{for(let i=0;i<40;i++){const cell=document.createElement("i");cell.className="cell"+([0,10,11,16,21,25,28,32].includes(i)?" done":"")+([1,2,3,4,5,6,7,8].includes(i)?" gap":"");grid.append(cell)}});
+  const cards=[...document.querySelectorAll(".option")],result=document.getElementById("result");
+  function select(card){cards.forEach(item=>item.classList.remove("selected"));card.classList.add("selected");const choice=card.dataset.choice;localStorage.setItem("periodic-design-phone-layout",choice);result.innerHTML=`Selected: <strong>Option ${choice}</strong>. Tell me the option letter in ChatGPT.`}
+  cards.forEach(card=>{card.addEventListener("click",()=>select(card));card.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();select(card)}})});
+  const saved=localStorage.getItem("periodic-design-phone-layout"),savedCard=cards.find(card=>card.dataset.choice===saved);if(savedCard)select(savedCard);
+</script>
+</body>
+</html>
