@@ -12,6 +12,7 @@
 
   function calculateWorkspaceMetrics({
     viewportWidth,
+    viewportHeight,
     workspaceWidth,
     sidebarWidth,
     panelWidth,
@@ -34,6 +35,8 @@
     const stacked =
       Number(viewportWidth) <= STACK_BREAKPOINT ||
       sideBySideCellByWidth < MIN_SIDE_BY_SIDE_CELL_SIZE;
+    const landscape = Number(viewportWidth) > Number(viewportHeight);
+    const phoneSliding = stacked && landscape && Number(viewportWidth) <= 1100;
     const layoutWidth = stacked ? width : sideBySidePanelWidth;
     const gap = clamp(1, layoutWidth / 210, 6);
     const lowerGap = clamp(6, height * 0.03, 22);
@@ -42,10 +45,15 @@
     const desktopCell = Math.floor(
       clamp(MIN_SIDE_BY_SIDE_CELL_SIZE, Math.min(cellByWidth, cellByHeight), 64) * 4
     ) / 4;
-    const cellSize = stacked ? 48 : desktopCell;
+    const slidingCellByWidth =
+      (layoutWidth - TABLE_PANEL_HORIZONTAL_CHROME - (17 * 3)) / 18;
+    const cellSize = phoneSliding
+      ? Math.floor(clamp(40, slidingCellByWidth, 48) * 4) / 4
+      : (stacked ? 48 : desktopCell);
 
     return {
       stacked,
+      phoneSliding,
       cellSize,
       cellGap: stacked ? 3 : gap,
       lowerGap: stacked ? 20 : lowerGap,

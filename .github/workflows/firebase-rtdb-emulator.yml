@@ -47,7 +47,7 @@ jobs:
         run: |
           cat > firebase.json <<'JSON'
           {
-            "database": { "rules": "database.rules.v21.6.json" },
+            "database": { "rules": "database.rules.v21.8.json" },
             "emulators": {
               "database": { "port": 9000 },
               "ui": { "enabled": false }

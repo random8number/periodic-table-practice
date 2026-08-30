@@ -181,10 +181,29 @@
       <button id="leaveOnlineRoomButton" type="button">Leave room</button>
     </div>
 
+    <div id="onlinePrivateOptions" class="online-private-options" hidden>
+      <span class="tool-label">My display</span>
+      <div class="button-row">
+        <button type="button" data-online-sort="random">Random</button>
+        <button type="button" data-online-sort="alpha">Alphabetical</button>
+        <button type="button" data-online-sort="category">By category</button>
+        <label class="check-option">
+          <input id="onlineCategoryColours" type="checkbox"> Category colours
+        </label>
+      </div>
+    </div>
+
   </div>
 
   <div class="main" id="mainLayout">
     <section class="table-panel" id="tablePanel">
+      <div class="online-phone-nav online-table-nav">
+        <button id="onlineShowElementsButton" type="button">Choose element</button>
+        <div id="onlineSelectedTile" class="online-selected-tile" aria-live="polite">
+          <span class="mini-number">—</span><span class="mini-symbol">—</span>
+          <span class="mini-name">No element selected</span>
+        </div>
+      </div>
       <div class="legend" id="legend"></div>
       <div class="periodic-wrapper">
         <div id="periodic-table" class="table-grid"></div>
@@ -202,10 +221,16 @@
     <div class="splitter" id="panelSplitter" title="Drag to resize the table and element list"></div>
 
     <aside class="elements-panel" id="element-panel">
-      <h2 id="elementsTitle">Elements</h2>
+      <div class="online-phone-nav online-elements-nav">
+        <h2 id="elementsTitle">Elements</h2>
+        <button id="onlineShowTableButton" type="button">Show table</button>
+      </div>
       <div id="element-list" class="element-list"></div>
       <div class="score" id="score"></div>
     </aside>
+  </div>
+  <div id="onlineRotateNotice" class="online-rotate-notice" role="status">
+    Turn your phone sideways to use the full-screen table and element views.
   </div>
   
   <dialog id="newGameDialog" class="game-dialog">
@@ -262,6 +287,12 @@
             <span>Your name</span>
             <input id="newGameHostNameInput" type="text" maxlength="24" value="Player 1">
           </label>
+          <fieldset id="onlineHostPermissions">
+            <legend>Learning aids players may use</legend>
+            <label><input id="hostAllowAlphabetical" type="checkbox" checked> Alphabetical sorting</label>
+            <label><input id="hostAllowCategoryGrouping" type="checkbox" checked> Group by category</label>
+            <label><input id="hostAllowCategoryColours" type="checkbox" checked> Category colours</label>
+          </fieldset>
         </div>
       </div>
 
@@ -396,6 +427,8 @@
 <script src="element-sets.js?v=21.7-new-game"></script>
 <script src="game-setup.js?v=21.7-new-game"></script>
 <script src="layout-metrics.js?v=21.7-new-game"></script>
+<script src="online-options.js?v=21.8-learning-options"></script>
+<script src="multiplayer-scoring.js?v=21.8-learning-options"></script>
 <script src="app.js?v=21.7-new-game"></script>
 </body>
 </html>

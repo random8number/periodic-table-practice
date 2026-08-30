@@ -199,11 +199,43 @@ test('Join Game previews immutable host settings before joining', () => {
   assert.match(js, /joinPreviewSettings/);
 });
 
-test('online host still writes v21.6 category-game schema', () => {
-  assert.match(js, /version:\s*["']21\.6-category-games["']/);
+test('online host writes v21.8 learning-options category-game schema', () => {
+  assert.match(js, /version:\s*["']21\.8-learning-options["']/);
   assert.match(js, /elementSetId:\s*meta\.id/);
   assert.match(js, /requiredCount:\s*meta\.count/);
   assert.match(js, /elementLimit:\s*meta\.maxTarget/);
+  assert.match(js, /learningAids/);
+});
+
+test('online host can permit three independent private learning aids', () => {
+  for (const id of [
+    'onlineHostPermissions', 'hostAllowAlphabetical',
+    'hostAllowCategoryGrouping', 'hostAllowCategoryColours'
+  ]) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(js, /function readHostPermissions\(/);
+  assert.match(js, /periodicTableHostPermissions-v21\.8/);
+});
+
+test('online players get private random alphabetical category and colour controls', () => {
+  assert.match(html, /id="onlinePrivateOptions"/);
+  for (const mode of ['random', 'alpha', 'category']) {
+    assert.match(html, new RegExp(`data-online-sort="${mode}"`));
+  }
+  assert.doesNotMatch(html, /data-online-sort="atomic"/);
+  assert.match(html, /id="onlineCategoryColours"/);
+  assert.match(js, /periodicTableOnlinePreferences-v21\.8/);
+  assert.match(js, /function applyOnlinePlayerPreferences\(/);
+});
+
+test('online phone layout has full-screen view controls and a complete selected tile', () => {
+  for (const id of [
+    'onlineShowElementsButton', 'onlineShowTableButton',
+    'onlineSelectedTile', 'onlineRotateNotice'
+  ]) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(js, /function setOnlinePhoneView\(/);
+  assert.match(js, /online-phone-sliding/);
+  assert.match(css, /body\.online-phone-sliding/);
+  assert.doesNotMatch(js, /navigator\.userAgent/);
 });
 
 test('Firebase control gating does not depend on the optional status element', () => {

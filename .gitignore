@@ -1,0 +1,4 @@
+.worktrees/
+node_modules/
+database-debug.log
+firebase-debug.log
