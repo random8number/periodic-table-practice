@@ -115,3 +115,40 @@ test('desktop table metrics fit supplied width and height after quantization', (
     assert.ok(tableHeight <= input.usableHeight, `height ${tableHeight} exceeds ${input.usableHeight}`);
   }
 });
+
+test('landscape phone uses full-screen sliding views', () => {
+  const metrics = Layout.calculateWorkspaceMetrics({
+    viewportWidth: 844,
+    viewportHeight: 390,
+    workspaceWidth: 816,
+    sidebarWidth: 310,
+    panelWidth: 784,
+    usableHeight: 310
+  });
+  assert.equal(metrics.stacked, true);
+  assert.equal(metrics.phoneSliding, true);
+  assert.ok(metrics.cellSize >= 40 && metrics.cellSize <= 48);
+});
+
+test('portrait phone remains stacked and can show the rotate notice', () => {
+  const metrics = Layout.calculateWorkspaceMetrics({
+    viewportWidth: 390,
+    viewportHeight: 844,
+    panelWidth: 358,
+    usableHeight: 650
+  });
+  assert.equal(metrics.stacked, true);
+  assert.equal(metrics.phoneSliding, false);
+});
+
+test('wide desktop never uses sliding phone views', () => {
+  const metrics = Layout.calculateWorkspaceMetrics({
+    viewportWidth: 1600,
+    viewportHeight: 900,
+    workspaceWidth: 1500,
+    sidebarWidth: 310,
+    panelWidth: 1143,
+    usableHeight: 650
+  });
+  assert.equal(metrics.phoneSliding, false);
+});

@@ -2,8 +2,12 @@ const PeriodicElementSets = window.PeriodicElementSets;
 if (!PeriodicElementSets) throw new Error("element-sets.js failed to load");
 const PeriodicGameSetup = window.PeriodicGameSetup;
 const PeriodicLayoutMetrics = window.PeriodicLayoutMetrics;
+const PeriodicOnlineOptions = window.PeriodicOnlineOptions;
+const PeriodicMultiplayerScoring = window.PeriodicMultiplayerScoring;
 if (!PeriodicGameSetup) throw new Error("game-setup.js failed to load");
 if (!PeriodicLayoutMetrics) throw new Error("layout-metrics.js failed to load");
+if (!PeriodicOnlineOptions) throw new Error("online-options.js failed to load");
+if (!PeriodicMultiplayerScoring) throw new Error("multiplayer-scoring.js failed to load");
 const { elements, categoryOrder } = PeriodicElementSets;
 
 let currentSort = "alpha";
@@ -44,7 +48,7 @@ const DEFAULT_MODE_CONFIG = {
   },
   multiplayer: {
     defaultElementSet: 20,
-    streakPoints: [10, 12, 14, 16, 18]
+    streakPoints: [10, 10, 11, 12, 13, 14]
   }
 };
 
@@ -64,6 +68,10 @@ let firebaseOnline = {
 };
 
 const ONLINE_SESSION_KEY = "periodicTableOnlineSession-v21.6-category-games";
+const ONLINE_HOST_PERMISSIONS_KEY = "periodicTableHostPermissions-v21.8";
+const ONLINE_PLAYER_PREFERENCES_KEY = "periodicTableOnlinePreferences-v21.8";
+
+let onlinePlayerPreferences = { sortMode: "random", categoryColours: false };
 
 let onlineRoom = null;
 let joinPreview = null;
@@ -123,6 +131,87 @@ function setJoinGameSetupMessage(message = "", isError = false) {
   el.classList.toggle("error", isError);
 }
 
+function readStoredJson(key, fallback) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function writeStoredJson(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.debug("Could not save browser preference:", error);
+  }
+}
+
+function readHostPermissions() {
+  return PeriodicOnlineOptions.normaliseHostPermissions({
+    allowAlphabetical: document.getElementById("hostAllowAlphabetical").checked,
+    allowCategoryGrouping: document.getElementById("hostAllowCategoryGrouping").checked,
+    allowCategoryColours: document.getElementById("hostAllowCategoryColours").checked
+  });
+}
+
+function loadHostPermissionsIntoDialog() {
+  const stored = readStoredJson(
+    ONLINE_HOST_PERMISSIONS_KEY,
+    PeriodicOnlineOptions.DEFAULT_HOST_PERMISSIONS
+  );
+  const permissions = PeriodicOnlineOptions.normaliseHostPermissions(stored);
+  document.getElementById("hostAllowAlphabetical").checked = permissions.allowAlphabetical;
+  document.getElementById("hostAllowCategoryGrouping").checked = permissions.allowCategoryGrouping;
+  document.getElementById("hostAllowCategoryColours").checked = permissions.allowCategoryColours;
+}
+
+function getOnlineHostPermissions(roomData = getOnlineRoomData()) {
+  const learningAids = roomData && roomData.settings && roomData.settings.learningAids;
+  return PeriodicOnlineOptions.normaliseHostPermissions(learningAids || {});
+}
+
+function loadOnlinePlayerPreferences() {
+  return readStoredJson(ONLINE_PLAYER_PREFERENCES_KEY, onlinePlayerPreferences);
+}
+
+function applyOnlinePlayerPreferences(nextPreferences = loadOnlinePlayerPreferences()) {
+  if (!isOnlineRoomActive()) return;
+
+  const permissions = getOnlineHostPermissions();
+  onlinePlayerPreferences = PeriodicOnlineOptions.normalisePlayerPreferences(
+    nextPreferences,
+    permissions
+  );
+  writeStoredJson(ONLINE_PLAYER_PREFERENCES_KEY, onlinePlayerPreferences);
+
+  const controls = document.getElementById("onlinePrivateOptions");
+  controls.hidden = false;
+  const allowed = PeriodicOnlineOptions.allowedSortModes(permissions);
+  controls.querySelectorAll("[data-online-sort]").forEach(button => {
+    const permitted = allowed.includes(button.dataset.onlineSort);
+    button.hidden = !permitted;
+    button.disabled = !permitted;
+    button.classList.toggle("active", button.dataset.onlineSort === onlinePlayerPreferences.sortMode);
+  });
+
+  const colourControl = document.getElementById("onlineCategoryColours");
+  colourControl.closest("label").hidden = !permissions.allowCategoryColours;
+  colourControl.disabled = !permissions.allowCategoryColours;
+  colourControl.checked = onlinePlayerPreferences.categoryColours;
+
+  currentSort = onlinePlayerPreferences.sortMode;
+  setTableColours(onlinePlayerPreferences.categoryColours);
+  setElementColours(onlinePlayerPreferences.categoryColours);
+  buildList(currentSort);
+}
+
+function hideOnlinePlayerPreferences() {
+  const controls = document.getElementById("onlinePrivateOptions");
+  if (controls) controls.hidden = true;
+}
+
 function setGameSetupOperationPending(pending) {
   gameSetupOperationPending = pending;
   ["confirmNewGameButton", "confirmJoinGameButton"].forEach(id => {
@@ -170,6 +259,8 @@ function openNewGameDialog() {
   if (roomData && roomData.host) {
     document.getElementById("newGameHostNameInput").value = roomData.host.name || "Player 1";
   }
+
+  loadHostPermissionsIntoDialog();
 
   renderNewGameModeFields();
   setNewGameSetupMessage("");
@@ -411,7 +502,11 @@ function getOnlineRequiredCount() {
 }
 
 function isSupportedOnlineRoomVersion(version) {
-  return ["21.5-first36", "21.6-category-games"].includes(version);
+  return ["21.5-first36", "21.6-category-games", "21.8-learning-options"].includes(version);
+}
+
+function isCategoryOnlineRoomVersion(version) {
+  return ["21.6-category-games", "21.8-learning-options"].includes(version);
 }
 
 function getOnlineCompletedSymbols() {
@@ -578,6 +673,8 @@ function setOnlineRoomControls(active) {
 
   document.body.classList.toggle("online-room-mode", active);
 
+  if (!active) hideOnlinePlayerPreferences();
+
   if (active) setOptionControlsLocked(true);
   else setMultiplayerControls(false);
 }
@@ -615,6 +712,7 @@ function updateOnlineInteractionClasses() {
 
 function renderOnlineSelectionState() {
   const el = document.getElementById("onlineSelectionState");
+  renderOnlineSelectedTile();
   if (!el) return;
 
   if (!isOnlineRoomActive()) {
@@ -631,6 +729,30 @@ function renderOnlineSelectionState() {
   el.textContent = element
     ? `Selected: ${element[1]} — ${element[2]}`
     : `Selected: ${onlineRoom.selectedSymbol}`;
+}
+
+function renderOnlineSelectedTile() {
+  const tile = document.getElementById("onlineSelectedTile");
+  if (!tile) return;
+  const element = onlineRoom && onlineRoom.selectedSymbol
+    ? getElement(onlineRoom.selectedSymbol)
+    : null;
+  tile.className = "online-selected-tile";
+  if (!element) {
+    tile.innerHTML = '<span class="mini-number">—</span><span class="mini-symbol">—</span>' +
+      '<span class="mini-name">No element selected</span>';
+    return;
+  }
+  const [number, symbol, name, group, period] = element;
+  tile.classList.add(categoryClass(getCategory(number, symbol, group, period)));
+  tile.innerHTML = `<span class="mini-number">${number}</span>` +
+    `<span class="mini-symbol">${symbol}</span><span class="mini-name">${name}</span>`;
+}
+
+function setOnlinePhoneView(view) {
+  const nextView = view === "table" ? "table" : "elements";
+  document.body.classList.toggle("online-phone-view-table", nextView === "table");
+  document.body.classList.toggle("online-phone-view-elements", nextView === "elements");
 }
 
 function renderPresenceBadge(role, roomData) {
@@ -715,7 +837,13 @@ function renderOnlineRoomStatus(roomData = null) {
     const setMeta = setId ? getSetMetaOrNull(setId) : null;
     const setLabel = setMeta ? setMeta.label : "Unknown element set";
 
-    settingsEl.textContent = `Game settings: ${difficultyName} • ${setLabel}`;
+    const permissions = getOnlineHostPermissions(data);
+    const aids = [
+      permissions.allowAlphabetical ? "A–Z allowed" : "A–Z off",
+      permissions.allowCategoryGrouping ? "Categories allowed" : "Categories off",
+      permissions.allowCategoryColours ? "Colours allowed" : "Colours off"
+    ];
+    settingsEl.textContent = `Game settings: ${difficultyName} • ${setLabel} • ${aids.join(" • ")}`;
   }
 
   document.getElementById("onlineHostScore").textContent = `${hostStats.score || 0} pts`;
@@ -1394,11 +1522,14 @@ function showOnlineMoveFeedback(move, roomData) {
     );
   } else {
     setOnlineTurnFeedback(
-      `${playerName}: incorrect — streak reset and turn passes.`,
+      `${playerName}: incorrect — −2 points, streak reset and turn passes.`,
       "bad",
       1800
     );
     flashOnlineWrongMove(move);
+  }
+  if (document.body.classList.contains("online-phone-sliding")) {
+    window.setTimeout(() => setOnlinePhoneView("elements"), 760);
   }
 }
 
@@ -1466,7 +1597,7 @@ function applyOnlineRoomSnapshot(roomData) {
 
   if (
     roomData &&
-    roomData.version === "21.6-category-games" &&
+    isCategoryOnlineRoomVersion(roomData.version) &&
     !PeriodicElementSets.normaliseElementSetId(roomData.settings && roomData.settings.elementSetId)
   ) {
     applyActiveGameSlots();
@@ -1487,9 +1618,8 @@ function applyOnlineRoomSnapshot(roomData) {
   syncOnlineCompletedToTable(roomData);
   applyActiveGameSlots();
 
-  currentSort = "game";
   const oldScroll = list.scrollTop;
-  buildList(currentSort);
+  applyOnlinePlayerPreferences(loadOnlinePlayerPreferences());
   list.scrollTop = oldScroll;
 
   renderOnlineRoomStatus(roomData);
@@ -1612,6 +1742,8 @@ async function createOnlineRoom(setup) {
     return;
   }
   const difficulty = setup.difficulty;
+  const learningAids = readHostPermissions();
+  writeStoredJson(ONLINE_HOST_PERMISSIONS_KEY, learningAids);
   setNewGameSetupMessage("Creating room…");
 
   try {
@@ -1621,7 +1753,7 @@ async function createOnlineRoom(setup) {
     const roomRef = api.ref(api.database, `rooms/${code}`);
 
     const roomData = {
-      version: "21.6-category-games",
+      version: "21.8-learning-options",
       status: "waiting",
       createdAt: api.serverTimestamp(),
       lastActivityAt: api.serverTimestamp(),
@@ -1631,7 +1763,8 @@ async function createOnlineRoom(setup) {
         difficulty,
         elementSetId: meta.id,
         requiredCount: meta.count,
-        elementLimit: meta.maxTarget
+        elementLimit: meta.maxTarget,
+        learningAids
       },
       game: createInitialOnlineGame(meta)
     };
@@ -1816,7 +1949,9 @@ function selectOnlineElement(symbol) {
   updateOnlineInteractionClasses();
   setDefaultOnlineTurnFeedback();
 
-  if (onlineRoom.selectedSymbol && isWorkspaceStacked()) {
+  if (onlineRoom.selectedSymbol && document.body.classList.contains("online-phone-sliding")) {
+    setOnlinePhoneView("table");
+  } else if (onlineRoom.selectedSymbol && isWorkspaceStacked()) {
     const panel = document.getElementById("tablePanel");
     if (panel) {
       window.setTimeout(() => panel.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -1899,6 +2034,8 @@ async function attemptOnlinePlacement(slot, symbol) {
         currentGame.completedLog = `${completedLog}${symbol}|`;
         currentGame.completedCount = Number(currentGame.completedCount || 0) + 1;
       } else {
+        points = -PeriodicMultiplayerScoring.INCORRECT_PENALTY;
+        player.score = PeriodicMultiplayerScoring.scoreAfterIncorrect(player.score);
         player.streak = 0;
         currentGame.currentTurn = role === "host" ? "guest" : "host";
         currentGame.completedLog = completedLog;
@@ -2050,7 +2187,7 @@ async function startOnlineRematch() {
     return;
   }
 
-  const legacyRoom = data.version !== "21.6-category-games";
+  const legacyRoom = !isCategoryOnlineRoomVersion(data.version);
   if (legacyRoom && !["first20", "first36", "all118"].includes(meta.id)) {
     setOnlineRematchSetupMessage(
       "Category rematches need a v21.6 room. Leave this room and create a new one.",
@@ -2082,7 +2219,10 @@ async function startOnlineRematch() {
           difficulty,
           elementSetId: meta.id,
           requiredCount: meta.count,
-          elementLimit: meta.maxTarget
+          elementLimit: meta.maxTarget,
+          ...(data.version === "21.8-learning-options"
+            ? { learningAids: getOnlineHostPermissions(data) }
+            : {})
         }
     );
 
@@ -2217,9 +2357,7 @@ function getMultiplayerStreakPoints() {
 }
 
 function pointsForStreak(streak) {
-  const points = getMultiplayerStreakPoints();
-  const index = Math.max(0, Math.min(points.length - 1, streak - 1));
-  return Number(points[index]) || 0;
+  return PeriodicMultiplayerScoring.pointsForStreak(streak);
 }
 
 function activePlayer() {
@@ -2709,6 +2847,7 @@ function fitLayoutToViewport() {
   const panelWidth = tablePanel.clientWidth - 32;
   const metrics = PeriodicLayoutMetrics.calculateWorkspaceMetrics({
     viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
     workspaceWidth: mainLayout.getBoundingClientRect().width,
     sidebarWidth: parseFloat(getComputedStyle(mainLayout).getPropertyValue("--sidebar-width")),
     panelWidth,
@@ -2716,6 +2855,20 @@ function fitLayoutToViewport() {
   });
 
   document.body.classList.toggle("layout-stacked", metrics.stacked);
+  document.body.classList.toggle(
+    "online-phone-sliding",
+    Boolean(metrics.phoneSliding && isOnlineRoomActive())
+  );
+  document.documentElement.style.setProperty(
+    "--available-phone-height",
+    `${availableMainHeight}px`
+  );
+  if (!metrics.phoneSliding) {
+    document.body.classList.remove("online-phone-view-table", "online-phone-view-elements");
+  } else if (!document.body.classList.contains("online-phone-view-table") &&
+      !document.body.classList.contains("online-phone-view-elements")) {
+    setOnlinePhoneView(onlineRoom && onlineRoom.selectedSymbol ? "table" : "elements");
+  }
   if (metrics.stacked) {
     document.documentElement.style.removeProperty("--available-main-height");
   } else {
@@ -2885,17 +3038,24 @@ function buildList(sortMode = currentSort) {
   if (sortMode === "game" && isLocalMultiplayerActive()) {
     const position = new Map(localGame.elementOrder.map((symbol, index) => [symbol, index]));
     sorted.sort((a, b) => (position.get(a[1]) ?? 999) - (position.get(b[1]) ?? 999));
-  } else if (sortMode === "game" && isOnlineRoomActive()) {
+  } else if ((sortMode === "game" || sortMode === "random") && isOnlineRoomActive()) {
     const game = getOnlineGame();
     const order = game && Array.isArray(game.elementOrder)
       ? game.elementOrder
       : sorted.map(el => el[1]);
     const position = new Map(order.map((symbol, index) => [symbol, index]));
     sorted.sort((a, b) => (position.get(a[1]) ?? 999) - (position.get(b[1]) ?? 999));
+  } else if (isOnlineRoomActive() && ["alpha", "category"].includes(sortMode)) {
+    sorted = PeriodicOnlineOptions.sortElementsForOnline(
+      sorted,
+      sortMode,
+      getCategory,
+      categoryOrder
+    );
   } else if (sortMode === "alpha") sorted.sort((a,b) => a[1].localeCompare(b[1]));
   if (sortMode === "atomic") sorted.sort((a,b) => a[0] - b[0]);
   if (sortMode === "random") sorted.sort(() => Math.random() - 0.5);
-  if (sortMode === "category") {
+  if (sortMode === "category" && !isOnlineRoomActive()) {
     const grouped = new Map(categoryOrder.map(category => [category, []]));
     sorted.forEach(el => {
       const category = getCategory(el[0], el[1], el[3], el[4]);
@@ -2987,7 +3147,13 @@ function dragFromSlot(e) {
 }
 
 function sortElements(mode) {
-  if (isLocalMultiplayerActive() || isOnlineRoomActive()) return;
+  if (isLocalMultiplayerActive()) return;
+  if (isOnlineRoomActive()) {
+    const allowed = PeriodicOnlineOptions.allowedSortModes(getOnlineHostPermissions());
+    if (!allowed.includes(mode)) return;
+    applyOnlinePlayerPreferences({ ...onlinePlayerPreferences, sortMode: mode });
+    return;
+  }
   buildList(mode);
 }
 
@@ -3490,6 +3656,39 @@ document.getElementById("joinGameButton").addEventListener("click", () => openJo
 
 document.querySelectorAll('input[name="newGamePlayMode"]').forEach(input => {
   input.addEventListener("change", renderNewGameModeFields);
+});
+
+document.querySelectorAll("[data-online-sort]").forEach(button => {
+  button.addEventListener("click", () => sortElements(button.dataset.onlineSort));
+});
+
+document.getElementById("onlineShowElementsButton").addEventListener("click", () => {
+  setOnlinePhoneView("elements");
+});
+document.getElementById("onlineShowTableButton").addEventListener("click", () => {
+  setOnlinePhoneView("table");
+});
+
+let onlinePhoneSwipeStart = null;
+document.getElementById("mainLayout").addEventListener("pointerdown", event => {
+  if (!document.body.classList.contains("online-phone-sliding") ||
+      event.target.closest("button, .element-tile, .slot")) return;
+  onlinePhoneSwipeStart = { x: event.clientX, y: event.clientY };
+});
+document.getElementById("mainLayout").addEventListener("pointerup", event => {
+  if (!onlinePhoneSwipeStart) return;
+  const deltaX = event.clientX - onlinePhoneSwipeStart.x;
+  const deltaY = event.clientY - onlinePhoneSwipeStart.y;
+  onlinePhoneSwipeStart = null;
+  if (Math.abs(deltaX) < 55 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+  setOnlinePhoneView(deltaX < 0 ? "elements" : "table");
+});
+
+document.getElementById("onlineCategoryColours").addEventListener("change", event => {
+  applyOnlinePlayerPreferences({
+    ...onlinePlayerPreferences,
+    categoryColours: event.target.checked
+  });
 });
 
 document.getElementById("confirmNewGameButton").addEventListener("click", startGameFromSetup);

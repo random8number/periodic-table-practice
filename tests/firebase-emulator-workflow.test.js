@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 
 const workflowPath = '.github/workflows/firebase-rtdb-emulator.yml';
-const approvedWorkflowSha256 = 'd60c16bd91664b22151dc6075a1550bdf3c4f8692bafa6e9a86230b41b219be5';
+const approvedWorkflowSha256 = 'f073b35f22420beb151bb8fca81099e6945c5ea066fdd2f9acc16beed6dd9bf2';
 
 function readWorkflow() {
   assert.equal(
@@ -123,7 +123,7 @@ function assertProductionIsolation(workflow) {
     [
       "cat > firebase.json <<'JSON'",
       '{',
-      '  "database": { "rules": "database.rules.v21.6.json" },',
+      '  "database": { "rules": "database.rules.v21.8.json" },',
       '  "emulators": {',
       '    "database": { "port": 9000 },',
       '    "ui": { "enabled": false }',
@@ -210,7 +210,7 @@ test('workflow runs only the RTDB emulator test with a demo project', () => {
   );
   assert.ok(configMatch, 'workflow must create an ephemeral firebase.json');
   assert.deepEqual(JSON.parse(configMatch[1]), {
-    database: { rules: 'database.rules.v21.6.json' },
+    database: { rules: 'database.rules.v21.8.json' },
     emulators: {
       database: { port: 9000 },
       ui: { enabled: false }
